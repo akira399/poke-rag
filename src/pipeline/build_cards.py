@@ -299,6 +299,23 @@ def build_typechart_cards() -> list[dict]:
             content += f"抵抗（受到一半伤害）：{'、'.join(resist)}。"
         if immune:
             content += f"免疫（不受伤害）：{'、'.join(immune)}。"
+        # 攻击视角：{zh}系招式克制谁，由防守方矩阵反推（评测发现仅防守视角
+        # 答不了「火属性招式克制哪些属性」这类攻击方问题）
+        atk_weak = [TYPE_MAP.get(d, d) for d, entry in chart.items()
+                    if (entry.get("damageTaken", {}).get(def_type)
+                        or entry.get("damageTaken", {}).get(def_type.capitalize())) == 1]
+        atk_resist = [TYPE_MAP.get(d, d) for d, entry in chart.items()
+                      if (entry.get("damageTaken", {}).get(def_type)
+                          or entry.get("damageTaken", {}).get(def_type.capitalize())) == 2]
+        atk_immune = [TYPE_MAP.get(d, d) for d, entry in chart.items()
+                      if (entry.get("damageTaken", {}).get(def_type)
+                          or entry.get("damageTaken", {}).get(def_type.capitalize())) == 3]
+        content += f"作为攻击方，{zh}属性招式克制{'、'.join(atk_weak) if atk_weak else '无'}属性（效果绝佳）"
+        if atk_resist:
+            content += f"，被{'、'.join(atk_resist)}属性抵抗"
+        if atk_immune:
+            content += f"，被{'、'.join(atk_immune)}属性免疫（无效）"
+        content += "。"
         cards.append({
             "card_id": f"type:{def_type}",
             "type": "typechart",
