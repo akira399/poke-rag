@@ -1,0 +1,20 @@
+{
+  "name": "poke-rag",
+  "version": "1.0.0",
+  "description": "> 面向招聘的 RAG 工程化项目：**用「人人都懂、答案可验证」的宝可梦数据，把企业知识库问答的全链路做透。**",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@smogon/calc": "^0.11.0"
+  }
+}

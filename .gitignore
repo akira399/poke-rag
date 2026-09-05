@@ -1,0 +1,24 @@
+# poke-rag 项目忽略清单
+.venv/
+__pycache__/
+*.pyc
+
+# 数据是「可重建资产」：git 只存脚本，一条命令可重新拉取
+data/
+
+# 敏感配置
+config.local.json
+.env
+# 运行产物
+sse_out.txt
+*.log
+# 开源仓库忽略清单
+node_modules/
+
+# 教学/内部文档（不入开源仓库）
+docs/02-M0-讲解.md
+docs/04-M1-讲解.md
+docs/05-M2-讲解.md
+docs/06-M3-讲解.md
+docs/07-M4-讲解.md
+docs/08-M5-讲解.md
