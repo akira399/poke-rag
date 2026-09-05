@@ -270,3 +270,47 @@ def build_meta_cards() -> list[dict]:
 
 
 
+
+
+def build_typechart_cards() -> list[dict]:
+    """Showdown typechart -> 属性克制卡片（每防守属性一张）。
+
+    克制关系是确定性知识（查表），写进卡片内容让检索直接命中、
+    回答可溯源，不依赖 LLM 记忆（确定性知识的正确归属）。
+    查询词「克制/弱点」在标题与正文自然出现即可保证召回；正文必须精炼——
+    堆砌查询词会造成词频饱和、污染无关查询的排序（实测：正文重复「属性」
+    十余次后，78 问检索评测 top-3 从 99% 跌到 94%）。
+    """
+    from .typechart import defense_matrix, load_typechart
+
+    chart = load_typechart()
+    cards = []
+    for def_type in sorted(chart.keys()):
+        # stellar 是攻击方机制（第九世代太晶爆发），不作防守属性建卡
+        if def_type == "stellar":
+            continue
+        zh = TYPE_MAP.get(def_type, def_type)
+        mult = defense_matrix([def_type], chart)
+        weak = [TYPE_MAP.get(t, t) for t, m in mult.items() if m > 1]
+        resist = [TYPE_MAP.get(t, t) for t, m in mult.items() if 0 < m < 1]
+        immune = [TYPE_MAP.get(t, t) for t, m in mult.items() if m == 0]
+        content = f"{zh}属性宝可梦的防守克制关系。弱点（被克制，受到双倍伤害）：{'、'.join(weak) if weak else '无'}。"
+        if resist:
+            content += f"抵抗（受到一半伤害）：{'、'.join(resist)}。"
+        if immune:
+            content += f"免疫（不受伤害）：{'、'.join(immune)}。"
+        cards.append({
+            "card_id": f"type:{def_type}",
+            "type": "typechart",
+            "title_zh": f"{zh}属性克制表",
+            "title_en": f"{def_type}-type matchups",
+            "aliases": [zh, f"{zh}属性", f"{zh}系", "克制", "弱点"],
+            "content_zh": content,
+            "content_en": f"{def_type} takes 2x from: {', '.join(weak) if weak else 'none'}; "
+                          f"0.5x from: {', '.join(resist) if resist else 'none'}; "
+                          f"immune: {', '.join(immune) if immune else 'none'}.",
+            "tags": ["typechart", def_type],
+            "source": {"provider": "showdown",
+                       "url": "https://github.com/smogon/pokemon-showdown/blob/master/data/typechart.ts"},
+        })
+    return cards

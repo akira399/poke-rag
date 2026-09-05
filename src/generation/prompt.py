@@ -23,9 +23,13 @@ SYSTEM_PROMPT = (
 
 
 def load_cards() -> dict[str, dict]:
-    """card_id -> card（引用编号映射时的数据源）。"""
+    """card_id -> card（引用编号映射时的数据源）。
+
+    必须覆盖检索语料的全部卡片类型：漏一类，该类卡片会在上下文组装时
+    被静默丢弃，模型拿到空上下文只能拒答（llm-eval 评测发现的实证）。
+    """
     cards: dict[str, dict] = {}
-    for name in ("pokemon", "move", "ability", "item"):
+    for name in ("pokemon", "move", "ability", "item", "meta", "typechart"):
         path = os.path.join(CARDS_DIR, f"{name}.jsonl")
         if not os.path.exists(path):
             continue

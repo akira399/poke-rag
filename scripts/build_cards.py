@@ -12,6 +12,7 @@ sys.path.insert(0, ROOT)
 from src.pipeline.aliases import build_aliases  # noqa: E402
 from src.pipeline.build_cards import (  # noqa: E402
     build_meta_cards,
+    build_typechart_cards,
     render_ability_card,
     render_item_card,
     render_move_card,
@@ -73,6 +74,8 @@ def build_all() -> dict[str, int]:
     _write_jsonl("pokemon.jsonl", pokemon_cards)
     meta_cards = build_meta_cards()
     _write_jsonl("meta.jsonl", meta_cards)
+    typechart_cards = build_typechart_cards()
+    _write_jsonl("typechart.jsonl", typechart_cards)
 
     # 别名表沉淀：检索层直接用
     with open(os.path.join(CARDS_DIR, "aliases.json"), "w", encoding="utf-8") as f:
@@ -84,6 +87,7 @@ def build_all() -> dict[str, int]:
         "ability": len(ability_cards),
         "item": len(item_cards),
         "meta": len(meta_cards),
+        "typechart": len(typechart_cards),
         "aliases": len(aliases),
     }
 
