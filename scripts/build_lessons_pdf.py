@@ -8,6 +8,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LESSONS = [
+    ("lesson-0-预备知识.md", "第零课 · 预备知识（先读这个）"),
     ("02-M0-讲解.md", "第一课 · 数据管道"),
     ("04-M1-讲解.md", "第二课 · 知识卡片"),
     ("05-M2-讲解.md", "第三课 · 检索层"),
@@ -56,10 +57,10 @@ def build_html() -> str:
 
     parts = [f"""<div class="cover">
 <h1>Poke-RAG 项目详解</h1>
-<div class="sub">宝可梦对战知识库问答系统 · 从零开始的六课</div>
+<div class="sub">宝可梦对战知识库问答系统 · 从零开始的七课（第零课=预备知识）</div>
 <div class="sub" style="font-size:11.5pt">数据管道 · 知识卡片 · 检索 · 生成 · 门户与规则引擎 · 调优验证</div>
 <div class="meta">配套开源仓库：github.com/akira399/poke-rag<br>
-每课含：常识铺垫（C 语言桥接） · 真实代码逐段精讲 · 现场事故复盘 · 自测题</div>
+每课含：常识铺垫（零基础向） · 真实代码逐段精讲 · 现场事故复盘 · 自测题</div>
 </div>
 <div class="toc"><h1>目录</h1><ol>"""]
     for _, title in LESSONS:
