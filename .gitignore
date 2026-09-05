@@ -25,3 +25,7 @@ docs/08-M5-讲解.md
 
 # 内部文档（不入开源仓库）
 docs/10-简历写法.md
+
+# 讲解 PDF（本地学习用）
+docs/_lessons.html
+docs/Poke-RAG-项目详解.pdf
