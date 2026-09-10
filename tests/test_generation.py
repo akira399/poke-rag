@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.generation.prompt import build_context, parse_citations
+from src.generation.prompt import build_context, linkify_citations, parse_citations
 
 
 class TestParseCitations:
@@ -33,3 +33,17 @@ class TestBuildContext:
         assert mapping["1"] == "poke:149"
         assert "[1]" in ctx
         assert "快龙" in ctx
+
+
+class TestLinkifyCitations:
+    def test_plain_numbers_become_links(self):
+        cards = {"1": {"source": {"url": "https://pokeapi.co/api/v2/pokemon-species/149/"}}}
+        out = linkify_citations("快龙是龙+飞行型[1]。", cards)
+        assert "[[1]](https://pokeapi.co" in out
+
+    def test_missing_source_kept_plain(self):
+        out = linkify_citations("规则结果[1]。", {"1": {"source": {}}})
+        assert out == "规则结果[1]。"
+
+    def test_unknown_number_kept(self):
+        assert linkify_citations("答案[9]", {}) == "答案[9]"

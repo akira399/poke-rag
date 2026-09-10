@@ -70,3 +70,20 @@ def parse_citations(answer: str) -> list[str]:
     import re
 
     return re.findall(r"\[(\d+)\]", answer)
+
+
+def linkify_citations(answer: str, cards_by_no: dict[str, dict]) -> str:
+    """把答案里的 [n] 变成可点击链接（指向来源 URL），供用户点击查证。
+
+    cards_by_no: {编号: 卡片}（source.url 为权威来源页面，如 PokeAPI）。
+    无来源 URL 的编号保持原样（如规则查询结果）。
+    """
+    import re
+
+    def repl(match):
+        n = match.group(1)
+        card = cards_by_no.get(n) or {}
+        url = (card.get("source") or {}).get("url")
+        return f"[[{n}]]({url})" if url else match.group(0)
+
+    return re.sub(r"\[(\d+)\]", repl, answer)

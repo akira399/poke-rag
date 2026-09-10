@@ -11,7 +11,6 @@ from collections.abc import Iterator
 
 from src.config import load
 from src.generation import prompt as prompt_mod
-from src.generation.llm import stream_chat
 from src.retrieval.index import search
 
 
@@ -46,13 +45,18 @@ class RAGEngine:
         tool_context = self._try_move_tool(query)
         if tool_context is not None:
             context, citation_map, cards = tool_context
+            yield {"type": "route", "path": "tool",
+                   "detail": "招式集合查询 → 规则引擎（learnsets + moves）"}
             yield {"type": "citations", "mapping": citation_map, "cards": cards}
             answer_text = ""
-            for delta in stream_chat(prompt_mod.build_messages(query, context)):
-                answer_text += delta
-                yield {"type": "delta", "text": delta}
+            for event in self._generate(prompt_mod.build_messages(query, context)):
+                if event["type"] == "delta":
+                    answer_text += event["text"]
+                yield event
             yield {"type": "done", "citations_ok": True, "citations_used": []}
             return
+
+        yield {"type": "route", "path": "rag", "detail": "知识库检索 → 流式生成"}
 
         if rag.get("use_dense", False) and embed_mod.embedding_available():
             from src.retrieval.index import _collection
@@ -72,19 +76,37 @@ class RAGEngine:
         if not fused:
             yield {"type": "reject"}
             return
+        all_cards = prompt_mod.load_cards()
+        yield {"type": "retrieval", "hits": [
+            {"card_id": cid,
+             "title_zh": (all_cards.get(cid) or {}).get("title_zh", cid),
+             "type": (all_cards.get(cid) or {}).get("type", "")}
+            for cid in fused
+        ]}
         # 2) 上下文组装
         context, citation_map = prompt_mod.build_context(fused)
         yield {"type": "citations", "mapping": citation_map,
-               "cards": [prompt_mod.load_cards().get(cid) for cid in fused]}
+               "cards": [all_cards.get(cid) for cid in fused]}
         # 3) 流式生成
         answer_text = ""
-        for delta in stream_chat(prompt_mod.build_messages(query, context)):
-            answer_text += delta
-            yield {"type": "delta", "text": delta}
+        for event in self._generate(prompt_mod.build_messages(query, context)):
+            if event["type"] == "delta":
+                answer_text += event["text"]
+            yield event
         # 4) 引用闸：编号必须落在本次知识片段编号内
         valid = set(citation_map.keys())
         used = set(prompt_mod.parse_citations(answer_text))
         yield {"type": "done", "citations_ok": used <= valid, "citations_used": sorted(used)}
+
+    def _generate(self, messages: list[dict]) -> Iterator[dict]:
+        """调模型并转发事件：reasoning（思考过程）与 delta（答案碎片）。"""
+        from src.generation.llm import stream_chat_events
+
+        for event in stream_chat_events(messages):
+            if event["type"] == "reasoning":
+                yield {"type": "reasoning", "text": event["text"]}
+            else:
+                yield {"type": "delta", "text": event["text"]}
 
     def _try_move_tool(self, query: str):
         """招式集合查询（规则工具）。命中返回 (context, citation_map, cards)，否则 None。"""

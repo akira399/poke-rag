@@ -191,49 +191,89 @@ def fetch_events(query: str):
             yield json.loads(line[len("data: "):])
 
 
-def stream_answer(prompt: str) -> tuple[str, dict]:
-    """单次消费事件流：返回 (答案文本, {引用编号: 卡片})。"""
-    answer_parts = []
-    citations: dict[str, dict] = {}
+def render_answer(prompt: str) -> tuple[str, dict]:
+    """单次消费事件流：过程（路由/检索/思考）实时展示，答案流式输出。
 
-    def gen():
-        answered = False
+    返回 (答案文本, {引用编号: 卡片})。
+    """
+    from src.generation import prompt as prompt_mod
+
+    answer_parts: list[str] = []
+    citations: dict[str, dict] = {}
+    with st.chat_message("assistant"):
+        status = st.status("🧠 正在处理…", expanded=True)
+        thinking_ph = status.empty()
+        answer_ph = st.empty()
+        rejected = False
+        thinking_len = 0
         for event in fetch_events(prompt):
             etype = event.get("type")
-            if etype == "delta":
-                answered = True
-                answer_parts.append(event["text"])
-                yield event["text"]
+            if etype == "route":
+                icon = "🔀"
+                status.write(f"{icon} 路由：{event['detail']}")
+            elif etype == "retrieval":
+                names = "、".join(h["title_zh"] for h in event["hits"])
+                status.write(f"🔍 检索命中 {len(event['hits'])} 张卡片：{names}")
             elif etype == "citations":
                 for n, card in zip(event["mapping"].keys(), event["cards"]):
                     citations[n] = card
+                titles = "、".join(
+                    f"[{n}] {c.get('title_zh', '')}" for n, c in citations.items()
+                )
+                status.write(f"📚 知识片段：{titles}")
+            elif etype == "reasoning":
+                thinking_len += len(event["text"])
+                if thinking_len % 60 < len(event["text"]):  # 节流更新
+                    thinking_ph.caption("💭 模型思考：" + event["text"][-300:])
+            elif etype == "delta":
+                answer_parts.append(event["text"])
+                answer_ph.markdown("".join(answer_parts) + "▌")
             elif etype == "reject":
-                yield "知识库中未找到相关信息。"
-                answered = True
-        return answered
-
-    with st.chat_message("assistant"):
-        displayed = list(st.write_stream(gen()))
-    answer = "".join(answer_parts) or "知识库中未找到相关信息。"
+                rejected = True
+                status.write("🚫 置信度不足，拒绝作答")
+        status.update(
+            label="✅ 完成" if not rejected else "⚠️ 已拒答",
+            state="complete" if not rejected else "error",
+            expanded=False,
+        )
+        answer = "".join(answer_parts) or "知识库中未找到相关信息。"
+        answer_ph.markdown(prompt_mod.linkify_citations(answer, citations))
+        for n, card in citations.items():
+            url = (card.get("source") or {}).get("url") or ""
+            with st.expander(f"[{n}] {card.get('title_zh', '')}　"
+                             + (f"（来源 ↗）" if url else "")):
+                st.markdown(card.get("content_zh", "") or card.get("content_en", "")[:400])
+                if url:
+                    st.markdown(f"来源：{url}")
     return answer, citations
 
 
 with tabs[0]:
     st.subheader("宝可梦对战知识库问答")
+    st.caption("回答带引用编号，点击 [n] 可跳转来源页面查证；处理过程（路由/检索/思考）默认展开")
     if "messages" not in st.session_state:
         st.session_state.messages = []
+    from src.generation import prompt as _prompt_mod
+
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+            content = msg["content"]
+            if msg["role"] == "assistant":
+                content = _prompt_mod.linkify_citations(content, msg.get("citations") or {})
+            st.markdown(content)
             for n, card in (msg.get("citations") or {}).items():
-                with st.expander(f"[{n}] {card.get('title_zh', '')}"):
-                    st.markdown(card.get("content_zh", "") or "")
+                url = (card.get("source") or {}).get("url") or ""
+                with st.expander(f"[{n}] {card.get('title_zh', '')}"
+                                 + ("　（来源 ↗）" if url else "")):
+                    st.markdown(card.get("content_zh", "") or card.get("content_en", "")[:400])
+                    if url:
+                        st.markdown(f"来源：{url}")
 
     if prompt := st.chat_input("问点什么？例如：快龙怕什么？"):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
-        answer, citations = stream_answer(prompt)
+        answer, citations = render_answer(prompt)
         st.session_state.messages.append(
             {"role": "assistant", "content": answer, "citations": citations}
         )
