@@ -287,7 +287,7 @@ with tabs[1]:
             st.markdown(f"**{hit['card_id']}** · {hit['title_zh']} · 得分 {hit['score']}")
             st.caption(hit["content_zh"][:120])
 
-with tabs[2]:
+with tabs[3]:
     st.subheader("模型设置（OpenAI 兼容协议）")
     s = requests.get(f"{API}/api/settings", timeout=10).json()
     base_url = st.text_input("Base URL", value=s["base_url"])
