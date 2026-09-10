@@ -60,9 +60,9 @@ class TestCalculate:
             pytest.skip("数据未生成")
         ctx = try_build_context("化石翼龙一发岩崩打喷火龙多少血")
         assert "伤害范围" in ctx
-        assert "100.0%" in ctx          # 4 倍弱点，必定秒杀
-        assert "命中率" in ctx          # 岩崩 90% 命中，必须给出
-        assert "会心一击" in ctx        # 概率也要给
+        assert "必定一击击杀" in ctx      # 4 倍弱点，满配置下必定秒杀
+        assert "招式命中率" in ctx        # 岩崩 90% 命中，必须给出
+        assert "会心一击" in ctx          # 暴击概率也要给
 
     def test_probability_reported_when_not_guaranteed(self):
         if not _HAS_DATA:
@@ -123,8 +123,9 @@ class TestExtremeScenarios:
             pytest.skip("数据未生成")
         ctx = try_build_context("快龙用龙爪打喷火龙多少血")
         assert "极端情况分析" in ctx
-        assert "结果取决于配置" in ctx
+        assert "结果取决于培养配置" in ctx
         assert "最不利情形" in ctx and "最有利情形" in ctx
+        assert "一定打不死" in ctx and "看概率" in ctx
 
     def test_scenarios_cover_ev_nature_item_weather(self):
         if not _HAS_DATA:

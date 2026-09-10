@@ -3,3 +3,12 @@ gatherUsageStats = false
 
 [server]
 headless = true
+
+# 深色主题：与虚化宝可梦背景（夜蓝色调）协调，保证文字对比度
+[theme]
+base = "dark"
+primaryColor = "#5B9CFF"
+backgroundColor = "#0C1428"
+secondaryBackgroundColor = "#141F38"
+textColor = "#EAF0FA"
+font = "sans serif"

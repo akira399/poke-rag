@@ -30,3 +30,8 @@ docs/10-简历写法.md
 docs/_lessons.html
 docs/Poke-RAG-项目详解.pdf
 docs/lesson-0-预备知识.md
+
+# 视觉验证产物与背景素材中间文件
+_ui_shot*.png
+_ui_answer*.png
+.streamlit/assets/_raw/

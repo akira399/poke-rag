@@ -74,3 +74,23 @@ class TestAllTabsRender:
         for need in ("Base URL", "模型名", "API Key"):
             assert need in labels, f"模型设置页缺少「{need}」输入框: {labels}"
         assert any("保存" in b.label for b in app.button), "模型设置页缺少保存按钮"
+
+
+class TestThemeAndBackground:
+    """界面主题与背景图必须存在且被注入（美化不能破坏可用性）。"""
+
+    def test_background_image_exists(self):
+        bg = os.path.join(_ROOT, ".streamlit", "assets", "background.png")
+        assert os.path.exists(bg), "背景图缺失，运行 python scripts/make_background.py"
+        assert os.path.getsize(bg) > 20_000, "背景图过小，可能是下载/生成失败"
+
+    def test_theme_injection(self):
+        from src.ui import theme
+
+        assert "stAppViewContainer" in theme._CSS
+        assert "poke-bg" in theme._CSS or "background-image" in theme._CSS
+
+    def test_render_with_theme(self, app):
+        """应用主题后页面仍能正常渲染（四个页签都在）。"""
+        assert not app.exception
+        assert len(app.tabs) == 4

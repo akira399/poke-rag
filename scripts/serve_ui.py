@@ -44,7 +44,13 @@ EXAMPLES = {
     ],
 }
 
-st.set_page_config(page_title="Poke-RAG · 宝可梦对战知识库", page_icon="🧭")
+st.set_page_config(page_title="Poke-RAG · 宝可梦对战知识库", page_icon="🧭",
+                   layout="wide")
+
+from src.ui import theme  # noqa: E402
+
+theme.inject(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                          ".streamlit"))
 
 tabs = st.tabs(["💬 问答", "🔍 检索调试", "🧮 伤害计算器", "⚙️ 模型设置"])
 

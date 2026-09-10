@@ -175,7 +175,7 @@ def extreme_scenarios(parsed: dict, atk_info: dict, mv_info: dict, df_info: dict
 
 
 def format_result(parsed: dict) -> str:
-    """完整计算：返回可交给 LLM 组织语言的事实文本（含概率与假设）。"""
+    """完整计算：返回可交给 LLM 组织语言的事实文本（默认假设前置、分节清晰）。"""
     attacker_slug, move_slug, defender_slug = parsed["attacker"], parsed["move"], parsed["defender"]
     atk_info, mv_info, df_info = (pokedata.pokemon(attacker_slug),
                                   pokedata.move(move_slug),
@@ -187,7 +187,7 @@ def format_result(parsed: dict) -> str:
     power = mv_info.get("basePower") or 0
     if power == 0:
         return (f"【伤害计算】招式「{_zh(move_slug, 'move')}」是变化招式（威力 0），"
-                f"不造成直接伤害，无法计算打掉多少 HP。")
+                f"不造成直接伤害，无法计算打掉多少血量。")
 
     category = str(mv_info.get("category", "")).lower()
     physical = category == "physical"
@@ -202,8 +202,9 @@ def format_result(parsed: dict) -> str:
     atk_types = [t.lower() for t in atk_info["types"]]
     def_types = [t.lower() for t in df_info["types"]]
     stab = move_type in atk_types
-    eff = type_effectiveness(move_type, def_types, __import__(
-        "src.pipeline.typechart", fromlist=["load_typechart"]).load_typechart())
+    from src.pipeline.typechart import load_typechart
+
+    eff = type_effectiveness(move_type, def_types, load_typechart())
 
     rolls = damage_rolls(DamageInput(
         level=level, power=power, atk=atk_value, defense=def_value,
@@ -216,129 +217,143 @@ def format_result(parsed: dict) -> str:
     ko_pct = ko_count / len(rolls) * 100
     accuracy = mv_info.get("accuracy")
     n_hits = math.ceil(defender_hp / dmg_min) if dmg_min > 0 else 99
-
     base_before_mod = get_base_damage(level, power, atk_value, def_value)
-    # Showdown 的类型是首字母大写（Rock），查表用小写
+
     atk_types_zh = "、".join(pokedata.TYPE_ZH.get(str(t).lower(), t) for t in atk_info["types"])
     def_types_zh = "、".join(pokedata.TYPE_ZH.get(str(t).lower(), t) for t in df_info["types"])
+    move_type_zh = pokedata.TYPE_ZH.get(move_type, move_type)
     eff_desc = ("（免疫，伤害为 0）" if eff == 0 else
                 "（四倍弱点，伤害非常高）" if eff >= 4 else
                 "（弱点，效果拔群）" if eff > 1 else
                 "（抗性，效果不佳）" if 0 < eff < 1 else "（无克制关系）")
-    lines = [
-        "【伤害计算结果（规则引擎计算，非模型推测）】",
-        f"场景：{_zh(attacker_slug, 'pokemon')} {level} 级 使用"
-        f"「{_zh(move_slug, 'move')}」攻击 {_zh(defender_slug, 'pokemon')} {level} 级",
-        "",
-        "【本次计算用的参数（未提到的都是默认值）】",
-        f"· 等级：{level} 级"
-        f"（{'由用户提供' if parsed.get('level_provided') else '用户未提供，按默认 50 级'}）",
-        f"· 个体值：满分 {DEFAULT_IV}（默认，相当于天赋拉满）",
-        f"· 努力值：{DEFAULT_EV}（默认，相当于完全没有投入努力值）",
-        "· 性格：默认无能力加成",
-        "· 持有道具、特性、天气：默认均无影响",
-        "⚠️ 请务必提醒用户：以上未提到的项都用了默认值，会明显影响结果；",
-        f"   补充 " + "、".join(KEY_SUPPLEMENTS) + " 可得到更准确的结果。",
-        "",
-        "【计算过程（可逐步核对）】",
-        f"第 1 步 · 算实际能力值（由种族值、个体值、努力值、等级共同决定）",
-        f"   攻击方 {_zh(attacker_slug, 'pokemon')}"
-        f"（种族值 {atk_info['baseStats'][atk_stat]}）→ "
-        f"{pokedata.STAT_ZH[atk_stat]}能力值 = {atk_value}",
-        f"   防御方 {_zh(defender_slug, 'pokemon')}"
-        f"（种族值 {df_info['baseStats'][def_stat]}）→ "
-        f"{pokedata.STAT_ZH[def_stat]}能力值 = {def_value}",
-        f"   防御方满血血量 = {defender_hp}"
-        f"（由血量种族值 {df_info['baseStats']['hp']} 决定）",
-        f"第 2 步 · 招式基础伤害 = （2×{level}÷5+2）× 威力{power} × {atk_value} ÷ {def_value}"
-        f" ÷ 50 + 2，向下取整 = {base_before_mod}",
-        f"第 3 步 · 本系加成（招式属性与自身属性相同时加成）："
-        f"{'有，伤害 ×1.5' if stab else '无'}",
-        f"第 4 步 · 属性相克倍率：{eff:g} 倍{eff_desc}",
-        "第 5 步 · 随机浮动：实际伤害在计算值的 85%~100% 之间随机（共 16 档）",
-        "",
-        "【数值明细】",
-        f"· 招式「{_zh(move_slug, 'move')}」：{pokedata.TYPE_ZH.get(move_type, move_type)}系，"
-        f"威力 {power}，{pokedata.CATEGORY_ZH.get(category, category)}招式"
-        f"，命中率 {accuracy if accuracy is not None else '必中'}",
-        f"· 攻击方属性：{atk_types_zh}系",
-        f"· 防御方属性：{def_types_zh}系",
-        "",
-        "【伤害结果】",
-        f"· 伤害范围：{dmg_min} ~ {dmg_max} 点血量（对应随机浮动的最差档与最好档）",
-        f"· 占对方满血比例：{hp_pct_min:.1f}% ~ {hp_pct_max:.1f}%",
-        f"· 一击击杀概率：{ko_pct:.1f}%（16 档随机值中有 {ko_count} 档可一击击杀）"
-        if eff > 0 else "· 属性免疫，无伤害",
-    ]
-    if eff > 0:
-        if ko_count == len(rolls):
-            lines.append("· 结论：必定一击击杀")
-        elif ko_count == 0:
-            lines.append(f"· 结论：无法一击击杀；按最低伤害计算需 {n_hits} 次攻击才能击倒")
-        else:
-            lines.append(f"· 结论：有概率一击击杀（{ko_pct:.1f}%），"
-                         f"未能击杀时按最低伤害需 {n_hits} 次")
-        lines.append(f"· 命中率：{accuracy if accuracy is not None else 100}%"
-                     + ("" if accuracy is None else f"（有 {100 - accuracy:.0f}% 概率打空）"))
-        lines.append("· 会心一击（暴击）：伤害 ×1.5，第九世代基础概率约 1/24（约 4.2%）")
-    if move_slug and attacker_slug and not pokedata.can_learn(attacker_slug, move_slug):
-        lines.append(f"⚠️ 注意：{_zh(attacker_slug, 'pokemon')} 在数据中不能学会"
-                     f"「{_zh(move_slug, 'move')}」，该组合可能不合法")
 
-    # 极端情况分析：默认假设会让结果落在一个区间，给出两端结论
+    # 参数来源：区分用户提供 / 采用默认值
+    provided, defaulted = [], []
+    if parsed.get("level_provided"):
+        provided.append(f"等级 {level} 级")
+    else:
+        defaulted.append("等级（按默认 50 级）")
+    defaulted += ["个体值（按满分 31）", "努力值（按未投入 0）", "性格（按无加成）",
+                  "持有道具（按无）", "特性（按无影响）", "天气场地（按无影响）"]
+
+    lines = [
+        "【第 0 节 · 计算前提（必须最先讲给用户）】",
+        f"对战场景：{_zh(attacker_slug, 'pokemon')} {level} 级 使用"
+        f"「{_zh(move_slug, 'move')}」攻击 {_zh(defender_slug, 'pokemon')} {level} 级",
+        f"用户已提供的信息：{'、'.join(provided) if provided else '无（全部按默认值）'}",
+        f"本次采用默认值的参数：{'、'.join(defaulted)}",
+        "默认值的大白话解释：个体值满分 = 天赋拉满；努力值 0 = 完全没有培养投入；"
+        "性格无加成 = 中性性格。",
+        f"⚠️ 必须提醒用户：这些默认值会明显影响结果，补充 "
+        f"{'、'.join(KEY_SUPPLEMENTS)} 后才能得到更准确的答案。",
+        "",
+        "【第 1 节 · 结论（先说结果）】",
+    ]
+
+    if eff == 0:
+        lines.append(f"· 属性免疫：{def_types_zh}系对{move_type_zh}系招式免疫，伤害为 0。")
+    else:
+        if ko_count == len(rolls):
+            ko_txt = "必定一击击杀"
+        elif ko_count == 0:
+            ko_txt = f"无法一击击杀，按最低伤害需 {n_hits} 次攻击才能击倒"
+        else:
+            ko_txt = f"有 {ko_pct:.1f}% 概率一击击杀，未击杀时需 {n_hits} 次攻击"
+        lines += [
+            f"· 伤害范围：{dmg_min} ~ {dmg_max} 点血量"
+            f"（占对方满血 {hp_pct_min:.1f}% ~ {hp_pct_max:.1f}%）",
+            f"· 一击击杀：{ko_txt}",
+            f"· 招式命中率：{accuracy if accuracy is not None else 100}%"
+            + ("" if accuracy is None else f"（{100 - accuracy:.0f}% 概率打空）"),
+            "· 会心一击（暴击）：伤害 ×1.5，第九世代基础概率约 1/24（约 4.2%）",
+        ]
+    if not pokedata.can_learn(attacker_slug, move_slug):
+        lines.append(f"· 数据校验：{_zh(attacker_slug, 'pokemon')} 在官方数据中无法学会"
+                     f"「{_zh(move_slug, 'move')}」，该组合可能不合法，需告知用户。")
+
+    lines += [
+        "",
+        "【第 2 节 · 计算过程（讲清楚结果怎么来的）】",
+        "1. 算双方实际能力值（由种族值、等级、个体值、努力值共同决定）：",
+        f"   攻击方 {_zh(attacker_slug, 'pokemon')}："
+        f"{pokedata.STAT_ZH[atk_stat]}种族值 {atk_info['baseStats'][atk_stat]}"
+        f" → 实际能力值 {atk_value}",
+        f"   防御方 {_zh(defender_slug, 'pokemon')}："
+        f"{pokedata.STAT_ZH[def_stat]}种族值 {df_info['baseStats'][def_stat]}"
+        f" → 实际能力值 {def_value}",
+        f"   防御方满血血量 {defender_hp}（血量种族值 {df_info['baseStats']['hp']}）",
+        f"2. 招式基础伤害 =（2×等级÷5+2）× 威力 × 攻击 ÷ 防御 ÷ 50 + 2"
+        f" =（2×{level}÷5+2）×{power}×{atk_value}÷{def_value}÷50+2 = {base_before_mod}",
+        f"3. 本系加成（招式属性与自身属性相同时）：{'有，×1.5' if stab else '无'}",
+        f"4. 属性相克：{move_type_zh}系招式打{def_types_zh}系 = {eff:g} 倍{eff_desc}",
+        "5. 随机浮动：同一配置下伤害在计算值的 85%~100% 之间随机（共 16 档），"
+        "这是结果呈范围而非单一数字的原因",
+        "",
+        "【第 3 节 · 数值明细】",
+        f"· 招式「{_zh(move_slug, 'move')}」：{move_type_zh}系，威力 {power}，"
+        f"{pokedata.CATEGORY_ZH.get(category, category)}招式，"
+        f"命中率 {accuracy if accuracy is not None else '必中'}",
+        f"· 攻击方属性：{atk_types_zh}系（{'有' if stab else '无'}本系加成）",
+        f"· 防御方属性：{def_types_zh}系",
+    ]
+
     if eff > 0:
-        lines.append("")
-        lines.append("【极端情况分析（因为缺参数，真实结果落在这个区间内）】")
-        lines.append("说明：努力值/性格/道具/天气未知时，结果不是单一数字。下面给出两端情形，"
-                     "用来回答「什么情况下必死、什么情况下一定不死」。")
+        lines += [
+            "",
+            "【第 4 节 · 极端情况分析（回答「什么情况打得死 / 什么情况打不死」）】",
+            "因为缺少培养参数，真实结果落在下面这个区间里。请用这几种情形回答用户，"
+            "不要只给一个数字。",
+        ]
         scenarios = extreme_scenarios(parsed, atk_info, mv_info, df_info,
                                       level, power, move_type, physical, stab, def_types)
-        for sc in scenarios:
+        for idx, sc in enumerate(scenarios, 1):
             r = sc["result"]
             pct_min = r["dmg_min"] / r["hp"] * 100 if r["hp"] else 0
             pct_max = r["dmg_max"] / r["hp"] * 100 if r["hp"] else 0
             if r["ko_pct"] >= 100:
-                verdict = "无论随机浮动如何都能一击击杀（必死）"
+                verdict = "一定打得死（无论随机浮动如何都能一击击杀）"
             elif r["ko_pct"] <= 0:
-                verdict = "任何随机浮动都无法一击击杀（一定不死）"
+                verdict = "一定打不死（任何随机浮动都无法一击击杀）"
             else:
-                verdict = f"有 {r['ko_pct']:.0f}% 概率一击击杀（看随机数，属于不确定）"
-            lines.append(f"· {sc['name']}")
-            lines.append(f"   条件：{sc['detail']}")
-            lines.append(f"   伤害 {r['dmg_min']} ~ {r['dmg_max']}，"
-                         f"占对方血量 {pct_min:.0f}% ~ {pct_max:.0f}%"
-                         f"（对方血量 {r['hp']}）→ {verdict}")
-        # 汇总两端结论
+                verdict = f"看概率（{r['ko_pct']:.0f}% 概率一击击杀，取决于随机浮动）"
+            lines += [
+                f"情形 {idx}｜{sc['name']}",
+                f"   条件：{sc['detail']}",
+                f"   伤害 {r['dmg_min']} ~ {r['dmg_max']}，占对方血量 "
+                f"{pct_min:.0f}% ~ {pct_max:.0f}%（对方血量 {r['hp']}）；"
+                f"我方{'物攻' if physical else '特攻'} {r['atk_v']}、"
+                f"对方{'物防' if physical else '特防'} {r['def_v']}",
+                f"   判定：{verdict}",
+            ]
         worst = scenarios[0]["result"]["ko_pct"]
         best = scenarios[-1]["result"]["ko_pct"]
         lines.append("")
         if worst >= 100:
-            lines.append("★ 总体结论：**在所有合理配置下都是必定一击击杀**，"
-                         "即使用最保守的假设也秒杀。")
+            lines.append("★ 总体结论：在所有合理配置下都必定一击击杀。")
         elif best <= 0:
-            lines.append("★ 总体结论：**在所有合理配置下都无法一击击杀**，"
-                         "即使按最有利的假设也打不死。")
+            lines.append("★ 总体结论：在所有合理配置下都无法一击击杀。")
         else:
-            lines.append("★ 总体结论：**结果取决于配置**——"
-                         f"最不利时一击击杀概率 {worst:.0f}%（大概率打不死），"
-                         f"最有利时 {best:.0f}%（大概率能打死）。")
-            lines.append(f"   决定因素：{ '、'.join(KEY_SUPPLEMENTS) }"
-                         f"，以及随机浮动（同一配置下伤害有 85%~100% 的波动）。")
-        lines.append("回答时必须把这两端情形都讲给用户，并说明是哪些配置把结果从"
-                     "「打不死」推到「打死」，不要只给单一数字。")
+            lines.append("★ 总体结论：结果取决于培养配置——最不利配置下一击击杀概率 "
+                         f"{worst:.0f}%（基本打不死），最有利配置下 {best:.0f}%（大概率打得死）。")
+            lines.append("   把结果从「打不死」推到「打得死」的关键因素："
+                         + "、".join(KEY_SUPPLEMENTS)
+                         + "，以及同一配置下的随机浮动（伤害有 85%~100% 的波动）。")
 
-    lines.append("")
-    lines.append("请基于以上数据用中文回答，要求：")
-    lines.append("1. 给出伤害范围、占满血比例、能否一击击杀以及对应概率；")
-    lines.append("2. 用一两句话说明结果是怎么来的（属性相克倍率、本系加成的影响）；")
-    lines.append("3. 必须提醒用户：本次用的是默认假设（等级 50、个体值满分、努力值未投入、"
-                 "无性格与道具加成），补充这些信息能让结果更准确；")
-    lines.append("4. 如果「极端情况分析」显示结果不确定，要像这样回答用户："
-                 "在什么情况下一定打得死、什么情况下一定打不死、什么情况下看概率；")
-    lines.append("5. 不要使用英文缩写术语，全部用中文表达"
-                 "（血量、努力值、个体值、一击击杀、本系加成）。")
+    lines += [
+        "",
+        "【回答格式要求（严格遵守，保证排版整洁）】",
+        "1. 用 Markdown 输出，按四块顺序组织，每块用 ### 三级标题；",
+        "2. 顺序固定为：计算前提 → 结论 → 计算过程 → 极端情况分析；",
+        "3. 「计算前提」必须放在最前面，用列表逐条列出默认值，"
+        "并用一句话说明这些默认值会影响结果、补充哪些信息更准确；",
+        "4. 「结论」用列表给出：伤害范围、占满血比例、能否一击击杀及概率、命中率、暴击；",
+        "5. 「计算过程」用有序列表逐步说明（能力值 → 基础伤害 → 本系 → 克制 → 随机浮动），"
+        "每步一行，不要写成大段文字；",
+        "6. 「极端情况分析」按情形分点，每条写清条件与判定，最后补一句总体结论；",
+        "7. 全文只用中文术语（血量、努力值、个体值、一击击杀、本系加成），禁止英文缩写；",
+        "8. 引用知识片段时在句末标注 [1]，同一编号不要重复标注。",
+    ]
     return "\n".join(lines)
-
 
 def try_build_context(query: str) -> str | None:
     """伤害问题入口：非伤害问题返回 None；伤害问题返回事实文本。"""
