@@ -74,6 +74,10 @@ def load_damage_data() -> dict:
         # 帕底亚三牛（Showdown 命名无 -breed 后缀，单独补）
         "paldeacombat": "帕底亚·斗战形态", "paldeablaze": "帕底亚·火舞形态",
         "paldeaaqua": "帕底亚·水澜形态",
+        # 天气/外衣形态
+        "sunny": "晴天形态", "rainy": "雨天形态", "snowy": "雪天形态",
+        "sandy": "沙地形态", "trash": "垃圾形态", "plant": "植物形态",
+        "megaz": "Mega进化Z", "spikyeared": "刺刺耳", "noice": "无冰",
     }
     # 长后缀优先，避免 "ash"（小智版）误吃 "sandslash"（穿山王）的尾部
     FORM_ORDERED = sorted(FORM_SUFFIX.items(), key=lambda kv: -len(kv[0]))
