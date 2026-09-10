@@ -42,11 +42,10 @@ class RAGEngine:
         rag = self.cfg["rag"]
         from src.retrieval import embed as embed_mod
 
-        tool_context = self._try_move_tool(query)
+        tool_context, route_detail = self._try_rule_tool(query)
         if tool_context is not None:
             context, citation_map, cards = tool_context
-            yield {"type": "route", "path": "tool",
-                   "detail": "招式集合查询 → 规则引擎（learnsets + moves）"}
+            yield {"type": "route", "path": "tool", "detail": route_detail}
             yield {"type": "citations", "mapping": citation_map, "cards": cards}
             answer_text = ""
             for event in self._generate(prompt_mod.build_messages(query, context)):
@@ -107,6 +106,27 @@ class RAGEngine:
                 yield {"type": "reasoning", "text": event["text"]}
             else:
                 yield {"type": "delta", "text": event["text"]}
+
+    def _try_rule_tool(self, query: str):
+        """规则工具分发：伤害计算优先，其次招式集合查询。
+
+        返回 ((context, citation_map, cards), 路由说明) 或 (None, "")。
+        """
+        from src.rules.damage_query import try_build_context
+
+        dmg = try_build_context(query)
+        if dmg is not None:
+            card = {"card_id": "rule:damage", "type": "rule",
+                    "title_zh": "伤害计算（规则引擎）", "title_en": "damage-calc",
+                    "content_zh": "本结果由伤害计算引擎产出（与官方 @smogon/calc 对拍一致）",
+                    "source": {"provider": "smogon-calc",
+                               "url": "https://github.com/smogon/damage-calc"}}
+            return (dmg, {"1": "rule:damage"}, [card]),                 "伤害计算 → 规则引擎（@smogon/calc 对拍一致的公式）"
+
+        move_ctx = self._try_move_tool(query)
+        if move_ctx is not None:
+            return move_ctx, "招式集合查询 → 规则引擎（learnsets + moves）"
+        return None, ""
 
     def _try_move_tool(self, query: str):
         """招式集合查询（规则工具）。命中返回 (context, citation_map, cards)，否则 None。"""

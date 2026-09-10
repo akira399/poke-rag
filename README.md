@@ -8,6 +8,7 @@ Showdown / Smogon），回答可溯源、效果可量化评测。
 
 - **知识库问答**：图鉴 / 招式 / 特性 / 道具 / 属性克制 / 对战环境，回答带引用溯源，低置信度拒答
 - **规则引擎**：属性克制查表、伤害计算（与官方 @smogon/calc 对拍一致）、招式集合查询（所有/变化招式）
+- **伤害问答**：直接问「A 用 B 打 C 多少血」——自动解析实体、计算伤害范围与击杀概率；信息不足时逐项追问缺失参数
 - **评测闭环**：78 问检索评测 top-3 99%、消融实验、官方对拍 86/86
 - **模型可配置**：OpenAI 兼容协议，界面填 base_url / api_key / model
 - **本地化**：官方简体中文名 + 补丁表
@@ -43,6 +44,19 @@ python -m streamlit run scripts/serve_ui.py --server.port=8501
 ```
 
 配置模型：编辑 `config.local.json`（gitignore）或在界面「模型设置」页填写。
+
+## 更新数据
+
+数据是可重建资产，随时可更新（官方规则数据每周有调整、环境榜每月更新）：
+
+```bash
+python scripts/update_data.py              # 增量更新（约 2-5 分钟）
+python scripts/update_data.py --index-only # 只重建索引（改代码后用）
+python scripts/update_data.py --full       # 含 PokeAPI 全量重拉（约 30 分钟）
+python scripts/update_data.py --only smogon  # 只更新指定数据源
+```
+
+更新后需重启运行中的服务（serve.py / streamlit）以加载新数据。
 
 ## 评测
 
