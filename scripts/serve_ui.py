@@ -13,6 +13,37 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 API = os.environ.get("POKE_RAG_API", "http://127.0.0.1:8765")
 
+# 常见问题实例（聊天页左侧一键提问；覆盖各条功能路径，便于快速验证）
+EXAMPLES = {
+    "伤害计算": [
+        "化石翼龙一发岩崩打喷火龙多少血",
+        "快龙用龙爪打喷火龙多少血",
+        "喷火龙用十万伏特打快龙多少血",
+    ],
+    "属性克制": [
+        "快龙怕什么属性？",
+        "皮卡丘怕什么？",
+    ],
+    "图鉴与招式": [
+        "啪嚓海胆的种族值是多少？",
+        "岩崩是什么属性的招式？威力多少？",
+    ],
+    "特性与道具": [
+        "硬壳盔甲有什么效果？",
+        "生命宝珠有什么效果？",
+    ],
+    "招式列表（规则查询）": [
+        "快龙会哪些变化招式？",
+        "皮卡丘能学所有什么招式？",
+    ],
+    "对战环境": [
+        "现在 Gen9 OU 环境使用率最高的宝可梦是谁？",
+    ],
+    "拒答演示（知识库外）": [
+        "今天上海的天气怎么样？",
+    ],
+}
+
 st.set_page_config(page_title="Poke-RAG · 宝可梦对战知识库", page_icon="🧭")
 
 tabs = st.tabs(["💬 问答", "🔍 检索调试", "🧮 伤害计算器", "⚙️ 模型设置"])
@@ -165,32 +196,53 @@ def render_answer(prompt: str) -> tuple[str, dict]:
 with tabs[0]:
     st.subheader("宝可梦对战知识库问答")
     st.caption("回答带引用编号，点击 [n] 可跳转来源页面查证；处理过程（路由/检索/思考）默认展开")
+
     if "messages" not in st.session_state:
         st.session_state.messages = []
+    if "pending" not in st.session_state:
+        st.session_state.pending = None
     from src.generation import prompt as _prompt_mod
 
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            content = msg["content"]
-            if msg["role"] == "assistant":
-                content = _prompt_mod.linkify_citations(content, msg.get("citations") or {})
-            st.markdown(content)
-            for n, card in (msg.get("citations") or {}).items():
-                url = (card.get("source") or {}).get("url") or ""
-                with st.expander(f"[{n}] {card.get('title_zh', '')}"
-                                 + ("　（来源 ↗）" if url else "")):
-                    st.markdown(card.get("content_zh", "") or card.get("content_en", "")[:400])
-                    if url:
-                        st.markdown(f"来源：{url}")
+    # 左侧常见问题实例，右侧对话区
+    col_demo, col_chat = st.columns([1, 2.6], gap="medium")
 
-    if prompt := st.chat_input("问点什么？例如：快龙怕什么？"):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        answer, citations = render_answer(prompt)
-        st.session_state.messages.append(
-            {"role": "assistant", "content": answer, "citations": citations}
-        )
+    with col_demo:
+        st.markdown("##### 💡 常见问题实例")
+        st.caption("点击任意一条即可提问")
+        for group, items in EXAMPLES.items():
+            st.markdown(f"**{group}**")
+            for i, q in enumerate(items):
+                if st.button(q, key=f"ex_{group}_{i}", use_container_width=True):
+                    st.session_state.pending = q
+
+    with col_chat:
+        for msg in st.session_state.messages:
+            with st.chat_message(msg["role"]):
+                content = msg["content"]
+                if msg["role"] == "assistant":
+                    content = _prompt_mod.linkify_citations(content, msg.get("citations") or {})
+                st.markdown(content)
+                for n, card in (msg.get("citations") or {}).items():
+                    url = (card.get("source") or {}).get("url") or ""
+                    with st.expander(f"[{n}] {card.get('title_zh', '')}"
+                                     + ("　（来源 ↗）" if url else "")):
+                        st.markdown(card.get("content_zh", "") or card.get("content_en", "")[:400])
+                        if url:
+                            st.markdown(f"来源：{url}")
+
+        prompt = st.chat_input("问点什么？例如：快龙怕什么？")
+        if st.session_state.pending:          # 点击左侧示例触发的提问
+            prompt = st.session_state.pending
+            st.session_state.pending = None
+        if prompt:
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+            answer, citations = render_answer(prompt)
+            st.session_state.messages.append(
+                {"role": "assistant", "content": answer, "citations": citations}
+            )
+            st.rerun()
 
 with tabs[1]:
     st.subheader("检索调试")

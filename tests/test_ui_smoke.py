@@ -50,6 +50,13 @@ class TestAllTabsRender:
         # 问答页：聊天输入框
         assert len(app.chat_input) >= 1, "问答页缺少聊天输入框"
 
+    def test_example_buttons_present(self, app):
+        """左侧常见问题实例按钮必须存在（覆盖伤害/克制/招式列表等路径）。"""
+        labels = [b.label for b in app.button]
+        joined = " ".join(labels)
+        for need in ("岩崩打喷火龙", "快龙怕什么属性", "变化招式", "天气"):
+            assert need in joined, f"缺少示例按钮「{need}」；现有：{joined[:200]}"
+
     def test_search_tab(self, app):
         # 检索调试页：问题输入框 + 检索按钮
         labels = [t.label for t in app.text_input]

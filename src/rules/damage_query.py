@@ -11,7 +11,8 @@ import math
 import re
 
 from src.rules import pokedata
-from src.rules.damage import DamageInput, damage_rolls, gen_stat, type_effectiveness
+from src.rules.damage import (DamageInput, damage_rolls, gen_stat, get_base_damage,
+                                type_effectiveness)
 
 # 意图关键词（检测"伤害计算"类问题）
 _DAMAGE_KEYWORDS = ["多少血", "多少伤害", "打多少", "能打", "伤害是多少", "几发",
@@ -21,19 +22,21 @@ _ATTACKERSHIP_WORDS = ["用", "使用", "一发", "一招", "打出", "使出", 
 _SPLIT_VERBS = ["打", "攻击", "揍", "轰", "撞", "秒"]
 _LEVEL_RE = re.compile(r"(?:lv|Lv|LV|等级)\s*(\d{1,3})")
 
-# 默认假设（用户未提供时使用，并明确告知）
+# 默认假设（用户未提供时使用，并明确告知）。全部用中文表述，避免英文缩写。
 DEFAULT_LEVEL = 50
 DEFAULT_IV = 31
 DEFAULT_EV = 0
 
 OPTIONAL_PARAMS = [
-    "双方等级（默认 Lv50）",
-    "努力值/个体值（默认 EV0 / IV31，未投入）",
-    "性格（默认无加成，可提升 10% 关键能力）",
-    "持有道具（如讲究头带 +50% 攻击、生命宝珠 +30% 伤害）",
-    "特性（如威吓降攻、厚脂肪减半、多鳞减半）",
-    "天气/场地（雨天水招 ×1.5、晴天火招 ×1.5）",
+    "双方等级（默认按 50 级计算）",
+    "个体值与努力值（默认个体值满分、努力值未投入）",
+    "性格（默认无能力加成，性格最多可再提高约一成关键能力）",
+    "持有道具（如讲究头带增加一半攻击力、生命宝珠增加三成伤害）",
+    "特性（如威吓降低对方攻击、厚脂肪让火冰伤害减半）",
+    "天气与场地（雨天水系招式威力涨一半、晴天火系招式涨一半）",
 ]
+# 对结果影响最大的补充项（回答里应提醒用户）
+KEY_SUPPLEMENTS = ["努力值投入", "性格", "持有道具", "特性"]
 
 
 def is_damage_query(query: str) -> bool:
@@ -150,33 +153,55 @@ def format_result(parsed: dict) -> str:
     accuracy = mv_info.get("accuracy")
     n_hits = math.ceil(defender_hp / dmg_min) if dmg_min > 0 else 99
 
+    base_before_mod = get_base_damage(level, power, atk_value, def_value)
+    # Showdown 的类型是首字母大写（Rock），查表用小写
+    atk_types_zh = "、".join(pokedata.TYPE_ZH.get(str(t).lower(), t) for t in atk_info["types"])
+    def_types_zh = "、".join(pokedata.TYPE_ZH.get(str(t).lower(), t) for t in df_info["types"])
+    eff_desc = ("（免疫，伤害为 0）" if eff == 0 else
+                "（四倍弱点，伤害非常高）" if eff >= 4 else
+                "（弱点，效果拔群）" if eff > 1 else
+                "（抗性，效果不佳）" if 0 < eff < 1 else "（无克制关系）")
     lines = [
         "【伤害计算结果（规则引擎计算，非模型推测）】",
-        f"场景：{_zh(attacker_slug, 'pokemon')} Lv{level} 使用「{_zh(move_slug, 'move')}」"
-        f"攻击 {_zh(defender_slug, 'pokemon')} Lv{level}",
+        f"场景：{_zh(attacker_slug, 'pokemon')} {level} 级 使用"
+        f"「{_zh(move_slug, 'move')}」攻击 {_zh(defender_slug, 'pokemon')} {level} 级",
         "",
-        "【计算参数（用户未提供的采用默认假设）】",
-        f"· 等级：{level}（{'用户指定' if parsed.get('level_provided') else '默认值'}）",
-        f"· 个体值/努力值：IV{DEFAULT_IV} / EV{DEFAULT_EV}（默认，未投入努力值）",
-        "· 性格、持有道具、特性、天气：默认无影响",
-        "如需更精确的结果，可让用户补充：" + "；".join(OPTIONAL_PARAMS[2:]),
+        "【本次计算用的参数（未提到的都是默认值）】",
+        f"· 等级：{level} 级"
+        f"（{'由用户提供' if parsed.get('level_provided') else '用户未提供，按默认 50 级'}）",
+        f"· 个体值：满分 {DEFAULT_IV}（默认，相当于天赋拉满）",
+        f"· 努力值：{DEFAULT_EV}（默认，相当于完全没有投入努力值）",
+        "· 性格：默认无能力加成",
+        "· 持有道具、特性、天气：默认均无影响",
+        "⚠️ 请务必提醒用户：以上未提到的项都用了默认值，会明显影响结果；",
+        f"   补充 " + "、".join(KEY_SUPPLEMENTS) + " 可得到更准确的结果。",
+        "",
+        "【计算过程（可逐步核对）】",
+        f"第 1 步 · 算实际能力值（由种族值、个体值、努力值、等级共同决定）",
+        f"   攻击方 {_zh(attacker_slug, 'pokemon')}"
+        f"（种族值 {atk_info['baseStats'][atk_stat]}）→ "
+        f"{pokedata.STAT_ZH[atk_stat]}能力值 = {atk_value}",
+        f"   防御方 {_zh(defender_slug, 'pokemon')}"
+        f"（种族值 {df_info['baseStats'][def_stat]}）→ "
+        f"{pokedata.STAT_ZH[def_stat]}能力值 = {def_value}",
+        f"   防御方满血血量 = {defender_hp}"
+        f"（由血量种族值 {df_info['baseStats']['hp']} 决定）",
+        f"第 2 步 · 招式基础伤害 = （2×{level}÷5+2）× 威力{power} × {atk_value} ÷ {def_value}"
+        f" ÷ 50 + 2，向下取整 = {base_before_mod}",
+        f"第 3 步 · 本系加成（招式属性与自身属性相同时加成）："
+        f"{'有，伤害 ×1.5' if stab else '无'}",
+        f"第 4 步 · 属性相克倍率：{eff:g} 倍{eff_desc}",
+        "第 5 步 · 随机浮动：实际伤害在计算值的 85%~100% 之间随机（共 16 档）",
         "",
         "【数值明细】",
-        f"· 攻击方 {_zh(attacker_slug, 'pokemon')}（{'/'.join(atk_info['types'])}系）："
-        f"{pokedata.STAT_ZH[atk_stat]} {atk_value}",
-        f"· 防御方 {_zh(defender_slug, 'pokemon')}（{'/'.join(df_info['types'])}系）："
-        f"{pokedata.STAT_ZH[def_stat]} {def_value}，满血 HP {defender_hp}",
         f"· 招式「{_zh(move_slug, 'move')}」：{pokedata.TYPE_ZH.get(move_type, move_type)}系，"
         f"威力 {power}，{pokedata.CATEGORY_ZH.get(category, category)}招式"
         f"，命中率 {accuracy if accuracy is not None else '必中'}",
-        f"· 本系加成：{'有（×1.5）' if stab else '无'}",
-        f"· 属性倍率：{eff:g}×"
-        + ("（免疫，伤害为 0）" if eff == 0 else
-           "（双弱点）" if eff >= 4 else "（弱点）" if eff > 1 else
-           "（抗性）" if 0 < eff < 1 else ""),
+        f"· 攻击方属性：{atk_types_zh}系",
+        f"· 防御方属性：{def_types_zh}系",
         "",
         "【伤害结果】",
-        f"· 伤害范围：{dmg_min} ~ {dmg_max}（16 档随机浮动 85%~100%）",
+        f"· 伤害范围：{dmg_min} ~ {dmg_max} 点血量（对应随机浮动的最差档与最好档）",
         f"· 占对方满血比例：{hp_pct_min:.1f}% ~ {hp_pct_max:.1f}%",
         f"· 一击击杀概率：{ko_pct:.1f}%（16 档随机值中有 {ko_count} 档可一击击杀）"
         if eff > 0 else "· 属性免疫，无伤害",
@@ -191,13 +216,18 @@ def format_result(parsed: dict) -> str:
                          f"未能击杀时按最低伤害需 {n_hits} 次")
         lines.append(f"· 命中率：{accuracy if accuracy is not None else 100}%"
                      + ("" if accuracy is None else f"（有 {100 - accuracy:.0f}% 概率打空）"))
-        lines.append("· 会心一击：伤害 ×1.5，第 9 世代基础概率约 1/24（约 4.2%）")
+        lines.append("· 会心一击（暴击）：伤害 ×1.5，第九世代基础概率约 1/24（约 4.2%）")
     if move_slug and attacker_slug and not pokedata.can_learn(attacker_slug, move_slug):
         lines.append(f"⚠️ 注意：{_zh(attacker_slug, 'pokemon')} 在数据中不能学会"
                      f"「{_zh(move_slug, 'move')}」，该组合可能不合法")
     lines.append("")
-    lines.append("请基于以上数据用中文回答，完整给出伤害范围、比例与概率；"
-                 "如用户未提供参数，说明采用的是默认假设并提示可补充哪些参数。")
+    lines.append("请基于以上数据用中文回答，要求：")
+    lines.append("1. 给出伤害范围、占满血比例、能否一击击杀以及对应概率；")
+    lines.append("2. 用一两句话说明结果是怎么来的（属性相克倍率、本系加成的影响）；")
+    lines.append("3. 必须提醒用户：本次用的是默认假设（等级 50、个体值满分、努力值未投入、"
+                 "无性格与道具加成），补充这些信息能让结果更准确；")
+    lines.append("4. 不要使用英文缩写（如 HP、EV、IV、OHKO、STAB），全部用中文表达"
+                 "（血量、努力值、个体值、一击击杀、本系加成）。")
     return "\n".join(lines)
 
 
