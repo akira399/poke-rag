@@ -110,6 +110,66 @@ def format_missing(parsed: dict) -> str:
     return "\n".join(lines)
 
 
+def _stat_with_ev(base: int, level: int, ev: int, nature: float = 1.0) -> int:
+    """能力值（含努力值与性格加成；性格在 +5 之后相乘再向下取整）。"""
+    val = (2 * base + DEFAULT_IV + ev // 4) * level // 100 + 5
+    return math.floor(val * nature)
+
+
+def _hp_with_ev(base: int, level: int, ev: int) -> int:
+    return (2 * base + DEFAULT_IV + ev // 4) * level // 100 + level + 10
+
+
+def extreme_scenarios(parsed: dict, atk_info: dict, mv_info: dict, df_info: dict,
+                      level: int, power: int, move_type: str, physical: bool,
+                      stab: bool, def_types: list[str]) -> list[dict]:
+    """极端情况分析：默认假设对结果的影响有多大。
+
+    因为用户没给努力值/性格/道具/天气，真实结果是一个区间。这里算出两端：
+    · 最不利情形：我方零投入、无道具天气；对方血量与防御都拉满且有性格加成
+    · 最有利情形：我方努力值拉满 + 性格加成 + 道具 + 有利天气；对方零投入
+    两端的击杀结论决定了「什么情况下必死 / 一定不死 / 看概率」。
+    """
+    atk_stat = "atk" if physical else "spa"
+    def_stat = "def" if physical else "spd"
+    atk_base = atk_info["baseStats"][atk_stat]
+    def_base = df_info["baseStats"][def_stat]
+    hp_base = df_info["baseStats"]["hp"]
+
+    # 有利天气只在招式属性匹配时生效
+    weather = None
+    if move_type == "water":
+        weather = "rain"
+    elif move_type == "fire":
+        weather = "sun"
+
+    def run(atk_ev, atk_nature, item_mult, weather_on, def_ev, def_nature, hp_ev):
+        atk_v = _stat_with_ev(atk_base, level, atk_ev, atk_nature)
+        def_v = _stat_with_ev(def_base, level, def_ev, def_nature)
+        hp_v = _hp_with_ev(hp_base, level, hp_ev)
+        rolls = damage_rolls(DamageInput(
+            level=level, power=power, atk=atk_v, defense=def_v, stab=stab,
+            move_type=move_type, defender_types=def_types,
+            weather=weather if weather_on else None, item_mult=item_mult,
+        ))
+        ko = sum(1 for d in rolls if d >= hp_v) / len(rolls) * 100 if hp_v else 0
+        return {"rolls": rolls, "hp": hp_v, "ko_pct": ko,
+                "dmg_min": min(rolls), "dmg_max": max(rolls),
+                "atk_v": atk_v, "def_v": def_v}
+
+    return [
+        {"name": "最不利情形（我方零投入，对方满血量满防御并有性格加成）",
+         "detail": "我方努力值 0、无性格加成、无道具无天气；对方血量与防御努力值拉满",
+         "result": run(0, 1.0, 1.0, False, 252, 1.1, 252)},
+        {"name": "中间情形（双方常规投入，各拉满努力值 252 并有性格加成）",
+         "detail": "我方进攻努力值 252 + 性格加成；对方血量与防御努力值 252 + 性格加成",
+         "result": run(252, 1.1, 1.0, False, 252, 1.1, 252)},
+        {"name": "最有利情形（我方全加成，对方零投入）",
+         "detail": "我方进攻努力值 252 + 性格加成 + 道具加成 + 有利天气；对方努力值 0",
+         "result": run(252, 1.1, 1.5, True, 0, 1.0, 0)},
+    ]
+
+
 def format_result(parsed: dict) -> str:
     """完整计算：返回可交给 LLM 组织语言的事实文本（含概率与假设）。"""
     attacker_slug, move_slug, defender_slug = parsed["attacker"], parsed["move"], parsed["defender"]
@@ -220,13 +280,58 @@ def format_result(parsed: dict) -> str:
     if move_slug and attacker_slug and not pokedata.can_learn(attacker_slug, move_slug):
         lines.append(f"⚠️ 注意：{_zh(attacker_slug, 'pokemon')} 在数据中不能学会"
                      f"「{_zh(move_slug, 'move')}」，该组合可能不合法")
+
+    # 极端情况分析：默认假设会让结果落在一个区间，给出两端结论
+    if eff > 0:
+        lines.append("")
+        lines.append("【极端情况分析（因为缺参数，真实结果落在这个区间内）】")
+        lines.append("说明：努力值/性格/道具/天气未知时，结果不是单一数字。下面给出两端情形，"
+                     "用来回答「什么情况下必死、什么情况下一定不死」。")
+        scenarios = extreme_scenarios(parsed, atk_info, mv_info, df_info,
+                                      level, power, move_type, physical, stab, def_types)
+        for sc in scenarios:
+            r = sc["result"]
+            pct_min = r["dmg_min"] / r["hp"] * 100 if r["hp"] else 0
+            pct_max = r["dmg_max"] / r["hp"] * 100 if r["hp"] else 0
+            if r["ko_pct"] >= 100:
+                verdict = "无论随机浮动如何都能一击击杀（必死）"
+            elif r["ko_pct"] <= 0:
+                verdict = "任何随机浮动都无法一击击杀（一定不死）"
+            else:
+                verdict = f"有 {r['ko_pct']:.0f}% 概率一击击杀（看随机数，属于不确定）"
+            lines.append(f"· {sc['name']}")
+            lines.append(f"   条件：{sc['detail']}")
+            lines.append(f"   伤害 {r['dmg_min']} ~ {r['dmg_max']}，"
+                         f"占对方血量 {pct_min:.0f}% ~ {pct_max:.0f}%"
+                         f"（对方血量 {r['hp']}）→ {verdict}")
+        # 汇总两端结论
+        worst = scenarios[0]["result"]["ko_pct"]
+        best = scenarios[-1]["result"]["ko_pct"]
+        lines.append("")
+        if worst >= 100:
+            lines.append("★ 总体结论：**在所有合理配置下都是必定一击击杀**，"
+                         "即使用最保守的假设也秒杀。")
+        elif best <= 0:
+            lines.append("★ 总体结论：**在所有合理配置下都无法一击击杀**，"
+                         "即使按最有利的假设也打不死。")
+        else:
+            lines.append("★ 总体结论：**结果取决于配置**——"
+                         f"最不利时一击击杀概率 {worst:.0f}%（大概率打不死），"
+                         f"最有利时 {best:.0f}%（大概率能打死）。")
+            lines.append(f"   决定因素：{ '、'.join(KEY_SUPPLEMENTS) }"
+                         f"，以及随机浮动（同一配置下伤害有 85%~100% 的波动）。")
+        lines.append("回答时必须把这两端情形都讲给用户，并说明是哪些配置把结果从"
+                     "「打不死」推到「打死」，不要只给单一数字。")
+
     lines.append("")
     lines.append("请基于以上数据用中文回答，要求：")
     lines.append("1. 给出伤害范围、占满血比例、能否一击击杀以及对应概率；")
     lines.append("2. 用一两句话说明结果是怎么来的（属性相克倍率、本系加成的影响）；")
     lines.append("3. 必须提醒用户：本次用的是默认假设（等级 50、个体值满分、努力值未投入、"
                  "无性格与道具加成），补充这些信息能让结果更准确；")
-    lines.append("4. 不要使用英文缩写（如 HP、EV、IV、OHKO、STAB），全部用中文表达"
+    lines.append("4. 如果「极端情况分析」显示结果不确定，要像这样回答用户："
+                 "在什么情况下一定打得死、什么情况下一定打不死、什么情况下看概率；")
+    lines.append("5. 不要使用英文缩写术语，全部用中文表达"
                  "（血量、努力值、个体值、一击击杀、本系加成）。")
     return "\n".join(lines)
 

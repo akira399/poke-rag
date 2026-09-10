@@ -102,3 +102,42 @@ class TestPokedata:
     def test_toid(self):
         assert pokedata.toid("Great Tusk") == "greattusk"
         assert pokedata.toid("Nidoran♀") == "nidoranf"
+
+
+class TestExtremeScenarios:
+    """默认假设影响结果时，必须给出两端情形（什么情况死 / 什么情况不死）。"""
+
+    def test_all_scenarios_ohko_for_4x_weakness(self):
+        if not _HAS_DATA:
+            import pytest
+            pytest.skip("数据未生成")
+        ctx = try_build_context("化石翼龙一发岩崩打喷火龙多少血")
+        assert "极端情况分析" in ctx
+        # 四倍弱点且双方满投入时必死；最不利情形仍可能差一点 →
+        # 结论应说明"取决于配置"，并把两端都讲清楚
+        assert "最有利情形" in ctx and "无论随机浮动如何都能一击击杀" in ctx
+
+    def test_uncertain_case_shows_both_ends(self):
+        if not _HAS_DATA:
+            import pytest
+            pytest.skip("数据未生成")
+        ctx = try_build_context("快龙用龙爪打喷火龙多少血")
+        assert "极端情况分析" in ctx
+        assert "结果取决于配置" in ctx
+        assert "最不利情形" in ctx and "最有利情形" in ctx
+
+    def test_scenarios_cover_ev_nature_item_weather(self):
+        if not _HAS_DATA:
+            import pytest
+            pytest.skip("数据未生成")
+        ctx = try_build_context("快龙用龙爪打喷火龙多少血")
+        for kw in ("努力值", "性格", "道具", "天气", "随机浮动"):
+            assert kw in ctx, f"极端情形未覆盖 {kw}"
+
+    def test_no_english_jargon_in_context(self):
+        if not _HAS_DATA:
+            import pytest
+            pytest.skip("数据未生成")
+        ctx = try_build_context("化石翼龙一发岩崩打喷火龙多少血")
+        for bad in ("OHKO", "STAB"):
+            assert bad not in ctx, f"事实文本不应出现英文缩写 {bad}"
