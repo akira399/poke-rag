@@ -78,6 +78,11 @@ def load_damage_data() -> dict:
         "sunny": "晴天形态", "rainy": "雨天形态", "snowy": "雪天形态",
         "sandy": "沙地形态", "trash": "垃圾形态", "plant": "植物形态",
         "megaz": "Mega进化Z", "spikyeared": "刺刺耳", "noice": "无冰",
+        # 对战常见形态（剑盾怪、达摩、谜拟丘、基格尔德、弱丁鱼…）
+        "blade": "刀剑形态", "shield": "盾牌形态", "zen": "达摩模式",
+        "busted": "现形形态", "complete": "完全体形态", "school": "群聚形态",
+        "core": "核心形态", "meteor": "流星形态", "gulping": "吞下形态",
+        "gorging": "大口吞下", "crowned": "王者形态", "noices": "无冰",
     }
     # 长后缀优先，避免 "ash"（小智版）误吃 "sandslash"（穿山王）的尾部
     FORM_ORDERED = sorted(FORM_SUFFIX.items(), key=lambda kv: -len(kv[0]))
@@ -109,13 +114,16 @@ def load_damage_data() -> dict:
     }
     moves = {
         slug: {
-            "zh": zh_moves.get(slug, slug.replace("-", "")),
+            "zh": zh_moves.get(slug, ""),
             "power": info.get("basePower"),
             "type": str(info.get("type", "")).lower(),
             "category": str(info.get("category", "")).lower(),
         }
         for slug, info in raw_moves.items()
     }
+    # 只保留下拉可读的条目：有中文名（避免英文/占位名混入选择器）
+    pokemon = {k: v for k, v in pokemon.items() if v["zh"] != k}
+    moves = {k: v for k, v in moves.items() if v["zh"]}
     learn = {k.lower(): set(v.get("learnset", {}).keys())
              for k, v in learnsets.items() if "learnset" in v}
     return {"pokemon": pokemon, "moves": moves, "learnsets": learn}
