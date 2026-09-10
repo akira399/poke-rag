@@ -25,7 +25,7 @@ def _load_cards(quality_filter: bool = True) -> list[dict]:
     检索时会因命中泛词而霸榜，污染召回（实测教训）。
     """
     cards: list[dict] = []
-    for name in ["pokemon", "move", "ability", "item", "meta", "typechart"]:
+    for name in ["pokemon", "form", "move", "ability", "item", "meta", "typechart"]:
         with open(os.path.join(CARDS_DIR, f"{name}.jsonl"), encoding="utf-8") as f:
             for line in f:
                 card = json.loads(line)
@@ -57,11 +57,13 @@ def build_index() -> None:
     ids = [c["card_id"] for c in cards]
     docs = [doc_text(c) for c in cards]
 
+    aliases = [c.get("aliases", []) for c in cards]
     os.makedirs(INDEX_DIR, exist_ok=True)
     if embed_mod.embedding_available():
+        alias_texts = [" ".join(c.get("aliases", [])) for c in cards]
         _collection().upsert(
             ids=ids,
-            embeddings=embed_texts(docs),
+            embeddings=embed_texts([f"{d} {a}" for d, a in zip(docs, alias_texts)]),
             documents=docs,
             metadatas=[{"card_id": cid, "title_zh": c["title_zh"], "type": c["type"]}
                        for c, cid in zip(cards, ids)],
@@ -69,7 +71,7 @@ def build_index() -> None:
         print(f"向量+关键词索引完成: {len(cards)} 张卡片")
     else:
         print(f"⚠️ 本地 embedding 不可用（内存/页面文件受限），仅构建 BM25 索引")
-    Bm25Index().build(ids, docs).save(os.path.join(INDEX_DIR, "bm25.json"))
+    Bm25Index().build(ids, docs, aliases).save(os.path.join(INDEX_DIR, "bm25.json"))
 
 
 def search(query: str, top_k: int = 20) -> list[tuple[str, float]]:
@@ -84,7 +86,8 @@ def search(query: str, top_k: int = 20) -> list[tuple[str, float]]:
     ids = [c["card_id"] for c in cards]
 
     query_enriched = expand(query)
-    bm25 = Bm25Index().load(os.path.join(INDEX_DIR, "bm25.json"), docs)
+    aliases = [c.get("aliases", []) for c in cards]
+    bm25 = Bm25Index().load(os.path.join(INDEX_DIR, "bm25.json"), docs, aliases)
     bm25_hits = bm25.search(query_enriched, top_k)
     bm25_rank = [cid for cid, _ in bm25_hits]
 

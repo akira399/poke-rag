@@ -107,7 +107,7 @@ QUESTIONS = [
 
 
 def resolve_card(title_en: str) -> str | None:
-    for name in ["pokemon", "move", "ability", "item", "meta"]:
+    for name in ["pokemon", "form", "move", "ability", "item", "meta"]:
         with open(os.path.join(CARDS_DIR, f"{name}.jsonl"), encoding="utf-8") as f:
             for line in f:
                 card = json.loads(line)

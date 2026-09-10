@@ -60,6 +60,11 @@ def toid(name: str) -> str:
             .replace("'", "").replace("\u2019", "").replace("é", "e").replace(":", ""))
 
 
+def zh_form_name(slug: str, zh_pokemon: dict[str, str]) -> str:
+    """公开版：slug -> 中文名（含形态后缀拼接），供卡片生成复用。"""
+    return _zh_name(slug, zh_pokemon)
+
+
 def _zh_name(slug: str, zh_pokemon: dict[str, str]) -> str:
     """slug -> 中文名（无独立卡片时按形态后缀拼出）。"""
     if slug in zh_pokemon:
@@ -157,3 +162,68 @@ def can_learn(pokemon_slug: str, move_slug: str) -> bool:
     """该宝可梦是否能学会该招式（用于校验问题里的组合是否合法）。"""
     learnset = load()["learnsets"].get(toid(pokemon_slug), {}).get("learnset", {})
     return toid(move_slug) in learnset
+
+# 用户对「进化形态」的常见说法
+_MEGA_WORDS = ["超级进化", "超进化", "超级", "mega", "Mega", "MEGA"]
+_FORM_WORDS = {"gmax": ["超极巨化", "极巨化", "gmax"],
+               "alola": ["阿罗拉"], "galar": ["伽勒尔"], "hisui": ["洗翠"],
+               "paldea": ["帕底亚"], "therian": ["灵兽"], "origin": ["起源"]}
+
+
+def forms_of(slug: str) -> list[str]:
+    """某宝可梦的全部形态 slug（如 charizard -> [charizardmegax, charizardmegay]）。"""
+    data = load()
+    base = toid(slug)
+    out = []
+    for cand, info in data["pokedex"].items():
+        if cand != base and cand.startswith(base) and "baseStats" in info:
+            out.append(cand)
+    return sorted(out)
+
+
+def resolve_pokemon_smart(text: str) -> tuple[str | None, str]:
+    """带形态的解析：返回 (slug, 说明)。
+
+    识别「超级进化喷火龙 / Mega喷火龙 / 喷火龙X / 阿罗拉形态」等说法，
+    调用方据「说明」向用户澄清歧义（如 X/Y 两种超级进化）。
+    """
+    from src.rules import pokedata as _self
+
+    data = load()
+    lowered = text.lower()
+    wants_mega = any(w in text or w.lower() in lowered for w in _MEGA_WORDS)
+    wants_form = None
+    for suffix, words in _FORM_WORDS.items():
+        if any(w in text or w.lower() in lowered for w in words):
+            wants_form = suffix
+            break
+
+    base = _self.resolve_pokemon(text)      # 基础名（最长匹配中文名）
+    if base is None:
+        return None, ""
+    if not (wants_mega or wants_form):
+        return base, ""
+
+    forms = forms_of(base)
+    if wants_mega:
+        candidates = [f for f in forms if "mega" in f]
+    else:
+        candidates = [f for f in forms if wants_form and wants_form in f]
+    if not candidates:
+        forms_all = forms
+        if forms_all:
+            return base, (f"「{_zh_name(base, data['zh_pokemon'])}」没有对应的进化形态数据，"
+                          f"将按普通形态计算")
+        return base, ""
+
+    # 用户指明了 X / Y
+    for mark, tag in (("x", "megax"), ("X", "megax"), ("y", "megay"), ("Y", "megay")):
+        if mark in text:
+            hit = [c for c in candidates if c.endswith(tag)]
+            if hit:
+                return hit[0], ""
+    if len(candidates) == 1:
+        return candidates[0], ""
+    names = "、".join(_zh_name(c, data["zh_pokemon"]) for c in candidates)
+    return None, (f"「{_zh_name(base, data['zh_pokemon'])}」有多个进化形态：{names}。"
+                  f"请向用户确认具体是哪一种形态后再计算。")

@@ -11,6 +11,7 @@ sys.path.insert(0, ROOT)
 
 from src.pipeline.aliases import build_aliases  # noqa: E402
 from src.pipeline.build_cards import (  # noqa: E402
+    build_form_cards,
     build_meta_cards,
     build_typechart_cards,
     render_ability_card,
@@ -72,6 +73,14 @@ def build_all() -> dict[str, int]:
             pokemon_cards.append(card)
 
     _write_jsonl("pokemon.jsonl", pokemon_cards)
+
+    # 形态卡片（超级进化/超极巨化/地区形态等）——PokeAPI 不含，来自 Showdown
+    existing = {c["title_en"].lower().replace(" ", "").replace("-", "")
+                for c in pokemon_cards}
+    existing |= {c["title_en"].lower().replace(" ", "") for c in pokemon_cards}
+    form_cards = build_form_cards(existing)
+    _write_jsonl("form.jsonl", form_cards)
+
     meta_cards = build_meta_cards()
     _write_jsonl("meta.jsonl", meta_cards)
     typechart_cards = build_typechart_cards()
@@ -83,6 +92,7 @@ def build_all() -> dict[str, int]:
 
     return {
         "pokemon": len(pokemon_cards),
+        "form": len(form_cards),
         "move": len(move_cards),
         "ability": len(ability_cards),
         "item": len(item_cards),

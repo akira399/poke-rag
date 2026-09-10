@@ -141,3 +141,62 @@ class TestExtremeScenarios:
         ctx = try_build_context("化石翼龙一发岩崩打喷火龙多少血")
         for bad in ("OHKO", "STAB"):
             assert bad not in ctx, f"事实文本不应出现英文缩写 {bad}"
+
+
+class TestMegaForms:
+    """Mega 等形态数据必须可检索、可计算（曾缺失导致回答"知识库无数据"）。"""
+
+    def test_form_cards_exist(self):
+        if not _HAS_DATA:
+            import pytest
+            pytest.skip("数据未生成")
+        import json
+        import os
+
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "data", "cards", "form.jsonl")
+        assert os.path.exists(path), "form.jsonl 未生成"
+        cards = [json.loads(l) for l in open(path, encoding="utf-8")]
+        assert len(cards) > 100, f"形态卡数量过少: {len(cards)}"
+        assert any("charizardmegax" in c["card_id"] for c in cards)
+        mega = next(c for c in cards if c["card_id"] == "form:charizardmegax")
+        assert "超级进化" in mega["content_zh"] and "634" in mega["content_zh"]
+
+    def test_form_resolution(self):
+        if not _HAS_DATA:
+            import pytest
+            pytest.skip("数据未生成")
+        # 明确形态：直接解析
+        assert pokedata.resolve_pokemon_smart("超级进化喷火龙X")[0] == "charizardmegax"
+        # 歧义形态：要求澄清而非瞎猜
+        slug, note = pokedata.resolve_pokemon_smart("超级进化喷火龙")
+        assert slug is None and "多个进化形态" in note
+
+    def test_mega_damage_calc(self):
+        if not _HAS_DATA:
+            import pytest
+            pytest.skip("数据未生成")
+        ctx = try_build_context("化石翼龙一发岩崩打超级进化喷火龙X多少血")
+        assert "Mega进化X" in ctx
+        assert "伤害范围" in ctx
+        # Mega X 是火+龙：岩石打火 2 倍、打龙 1 倍 → 合计 2 倍
+        assert "2 倍" in ctx
+        # 与普通喷火龙（火+飞，岩石 4 倍）对比，形态确实改变了克制关系
+        normal = try_build_context("化石翼龙一发岩崩打喷火龙多少血")
+        assert "4 倍" in normal
+
+    def test_mega_retrieval_hits_form_card(self):
+        if not _HAS_DATA:
+            import pytest
+            pytest.skip("数据未生成")
+        import os
+
+        if not os.path.exists(os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "data", "index", "bm25.json")):
+            import pytest
+            pytest.skip("索引未构建")
+        from src.retrieval.index import search
+
+        hits = [cid for cid, _ in search("超级进化喷火龙的种族值", top_k=3)]
+        assert any(h.startswith("form:charizard") for h in hits), f"未命中形态卡: {hits}"

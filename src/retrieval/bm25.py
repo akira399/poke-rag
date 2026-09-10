@@ -68,9 +68,15 @@ class Bm25Index:
         self.doc_ids: list[str] = []
         self._bm25: BM25Okapi | None = None
 
-    def build(self, ids: list[str], docs: list[str]) -> "Bm25Index":
+    def build(self, ids: list[str], docs: list[str],
+              aliases: list[list[str]] | None = None) -> "Bm25Index":
+        # 别名拼进文档：用户用口语（"超级进化喷火龙"）也能命中该卡
+        corpus = []
+        for i, d in enumerate(docs):
+            extra = " ".join(aliases[i]) if aliases and i < len(aliases) else ""
+            corpus.append(tokenize_hybrid(f"{d} {extra}"))
         self.doc_ids = ids
-        self._bm25 = BM25Okapi([tokenize_hybrid(d) for d in docs])
+        self._bm25 = BM25Okapi(corpus)
         return self
 
     def search(self, query: str, top_k: int = 20) -> list[tuple[str, float]]:
@@ -82,8 +88,8 @@ class Bm25Index:
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"ids": self.doc_ids}, f, ensure_ascii=False)
 
-    def load(self, path: str, docs: list[str]) -> "Bm25Index":
+    def load(self, path: str, docs: list[str],
+             aliases: list[list[str]] | None = None) -> "Bm25Index":
         with open(path, encoding="utf-8") as f:
             self.doc_ids = json.load(f)["ids"]
-        self._bm25 = BM25Okapi([tokenize_hybrid(d) for d in docs])
-        return self
+        return self.build(self.doc_ids, docs, aliases)

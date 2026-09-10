@@ -64,20 +64,23 @@ def parse(query: str) -> dict:
     else:
         left, right = text[:split_pos], text[split_pos + len(verb_used):]
 
-    attacker = pokedata.resolve_pokemon(left)
+    # 形态感知解析（识别「超级进化喷火龙X / 阿罗拉形态」等说法）
+    attacker, atk_note = pokedata.resolve_pokemon_smart(left)
     move_slug = pokedata.resolve_move(left)
     # 若左侧没找到招式，尝试全文（如"岩崩 化石翼龙打喷火龙"）
     if move_slug is None:
         move_slug = pokedata.resolve_move(query)
-    defender = pokedata.resolve_pokemon(right) if right else None
+    defender, def_note = (pokedata.resolve_pokemon_smart(right) if right else (None, ""))
+    if defender is None and def_note == "" and right:
+        defender, def_note = (None, "")
 
     missing = []
     if attacker is None:
-        missing.append("攻击方宝可梦")
+        missing.append(atk_note or "攻击方宝可梦")
     if move_slug is None:
         missing.append("使用的招式")
     if defender is None:
-        missing.append("防御方宝可梦")
+        missing.append(def_note or "防御方宝可梦")
     if level is None:
         missing.append("双方等级（或说明使用默认 Lv50）")
 
@@ -86,6 +89,7 @@ def parse(query: str) -> dict:
         "level": level or DEFAULT_LEVEL,
         "level_provided": level is not None,
         "missing": missing,
+        "form_hint": atk_note or def_note or "",
     }
 
 

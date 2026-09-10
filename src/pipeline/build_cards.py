@@ -331,3 +331,100 @@ def build_typechart_cards() -> list[dict]:
                        "url": "https://github.com/smogon/pokemon-showdown/blob/master/data/typechart.ts"},
         })
     return cards
+
+# 形态关键词 -> 中文说明（用于卡片正文，让检索也能命中「超级进化」等说法）
+FORM_KEYWORDS = {
+    "mega": "超级进化形态（Mega进化），需携带对应超级石",
+    "gmax": "超极巨化形态",
+    "alola": "阿罗拉地区形态",
+    "galar": "伽勒尔地区形态",
+    "hisui": "洗翠地区形态",
+    "paldea": "帕底亚地区形态",
+    "therian": "灵兽形态",
+    "origin": "起源形态",
+}
+
+
+def _form_kind(slug: str) -> tuple[str, str]:
+    """返回 (形态后缀, 中文说明)。"""
+    for suff in ("megax", "megay", "megaz", "mega", "gmax"):
+        if slug.endswith(suff):
+            base = suff[:-1] if suff.endswith("x") or suff.endswith("y") or suff.endswith("z") else suff
+            return suff, FORM_KEYWORDS.get(base, "特殊形态")
+    for suff in ("alola", "galar", "hisui", "paldea", "therian", "origin"):
+        if slug.endswith(suff):
+            return suff, FORM_KEYWORDS[suff]
+    return "", "特殊形态"
+
+
+def build_form_cards(existing_slugs: set[str]) -> list[dict]:
+    """用 Showdown 数据为「形态」生成知识卡片（超级进化/超极巨化/地区形态等）。
+
+    PokeAPI 不含这些形态，而它们在官方对战中大量使用（如超级进化喷火龙），
+    没有卡片就会导导致检索不到、回答「知识库中没有数据」。
+    """
+    from src.rules.pokedata import load as load_pokedata
+
+    data = load_pokedata()
+    pokedex = data["pokedex"]
+    zh_pokemon = data["zh_pokemon"]
+    cards = []
+    for slug, info in pokedex.items():
+        if slug in existing_slugs or "baseStats" not in info or "types" not in info:
+            continue
+        suff, kind_zh = _form_kind(slug)
+        if not suff:
+            continue  # 只处理明确形态，跳过其它非常规条目
+        from src.rules.pokedata import zh_form_name
+
+        title_zh = zh_form_name(slug, zh_pokemon)
+        base_slug = slug[: -len(suff)]
+        base_zh = zh_pokemon.get(base_slug, base_slug)
+        stats = info["baseStats"]
+        total = sum(v for v in stats.values() if isinstance(v, int))
+        types_zh = "、".join(TYPE_MAP.get(str(t).lower(), t) for t in info["types"])
+        from .typechart import load_typechart, weakness_text
+
+        flaw = weakness_text([str(t).lower() for t in info["types"]], load_typechart())
+        item = info.get("requiredItem") or ""
+        english_name = info.get("name", slug)
+        content = (
+            f"{title_zh}（{english_name}）是{base_zh}的{kind_zh}"
+            f"{('，需要携带道具「' + item + '」') if item else ''}。"
+            f"这是{types_zh}属性宝可梦，与普通形态的能力值不同。"
+            f"种族值：生命 {stats.get('hp')}、攻击 {stats.get('atk')}、防御 {stats.get('def')}、"
+            f"特攻 {stats.get('spa')}、特防 {stats.get('spd')}、速度 {stats.get('spe')}，"
+            f"种族值合计 {total}。"
+            + (f"属性克制：{flaw}。" if flaw else "")
+        )
+        cards.append({
+            "card_id": f"form:{slug}",
+            "type": "pokemon",
+            "title_zh": title_zh,
+            "title_en": english_name,
+            "aliases": _form_aliases(title_zh, english_name, base_zh, suff),
+            "content_zh": content,
+            "content_en": f"{english_name} ({kind_zh}) base stats total {total}.",
+            "tags": [str(t).lower() for t in info["types"]] + [kind_zh],
+            "stats": stats,
+            "source": {"provider": "showdown",
+                       "url": "https://github.com/smogon/pokemon-showdown"},
+        })
+    return cards
+
+def _form_aliases(title_zh: str, english_name: str, base_zh: str, suff: str) -> list[str]:
+    """形态卡的检索别名：把用户可能的口语说法都列进去。"""
+    aliases = [title_zh, english_name]
+    if "mega" in suff:
+        aliases += [f"超级进化{base_zh}", f"超进化{base_zh}", f"超级{base_zh}",
+                    f"Mega{base_zh}", f"{base_zh}Mega", f"{base_zh}超级进化"]
+        if suff.endswith("x"):
+            aliases += [f"超级进化{base_zh}X", f"{base_zh}X"]
+        elif suff.endswith("y"):
+            aliases += [f"超级进化{base_zh}Y", f"{base_zh}Y"]
+    elif suff == "gmax":
+        aliases += [f"超极巨化{base_zh}", f"极巨化{base_zh}"]
+    elif suff in ("alola", "galar", "hisui", "paldea"):
+        region = {"alola": "阿罗拉", "galar": "伽勒尔", "hisui": "洗翠", "paldea": "帕底亚"}[suff]
+        aliases += [f"{region}形态{base_zh}", f"{region}{base_zh}", f"{base_zh}{region}形态"]
+    return [a for a in dict.fromkeys(aliases) if a]
