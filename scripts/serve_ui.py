@@ -37,20 +37,66 @@ def load_damage_data() -> dict:
     with open(os.path.join(raw, "learnsets.json"), encoding="utf-8") as f:
         learnsets = json.load(f)["Learnsets"]
 
+    def toid(name: str) -> str:
+        """Showdown 紧凑命名：小写、去空格/连字符/点、性别符号转 f/m。
+        例：Great Tusk -> greattusk；Nidoran♀ -> nidoranf。"""
+        name = name.replace("♀", "f").replace("♂", "m")
+        return (name.lower().replace(" ", "").replace("-", "").replace(".", "")
+                .replace("'", "").replace("’", "")  # 直/弯引号（Farfetch'd）
+                .replace("é", "e").replace(":", ""))
+
     zh_pokemon = {}
     with open(os.path.join(cards_dir, "pokemon.jsonl"), encoding="utf-8") as f:
         for line in f:
             card = json.loads(line)
-            zh_pokemon[card["title_en"].lower()] = card["title_zh"]
+            zh_pokemon[toid(card["title_en"])] = card["title_zh"]   # 键与 Showdown 对齐
     zh_moves = {}
     with open(os.path.join(cards_dir, "move.jsonl"), encoding="utf-8") as f:
         for line in f:
             card = json.loads(line)
-            zh_moves[card["title_en"].lower()] = card["title_zh"]
+            zh_moves[toid(card["title_en"])] = card["title_zh"]
+
+    # 形态中文名规则：无独立卡片时用「本体中文名（形态·形态…）」拼出。
+    # 支持多重后缀迭代剥离（如 raticatealolatotem = 拉达 + 阿罗拉 + 霸主）
+    FORM_SUFFIX = {
+        "mega": "Mega进化", "megax": "Mega进化X", "megay": "Mega进化Y",
+        "gmax": "超极巨化", "alola": "阿罗拉形态", "galar": "伽勒尔形态",
+        "hisui": "洗翠形态", "paldea": "帕底亚形态", "therian": "灵兽形态",
+        "incarnate": "化身形", "origin": "起源形态", "attack": "攻击形态",
+        "defense": "防御形态", "speed": "速度形态", "primal": "原始回归",
+        "eternamax": "永恒极巨", "totem": "霸主形态", "battlebond": "羁绊变身",
+        "ash": "小智版", "cap": "帽子皮卡丘", "cosplay": "换装形态",
+        "rockstar": "摇滚明星", "belle": "贵妇", "popstar": "偶像",
+        "phd": "博士", "libre": "摔角手", "starter": "搭档",
+        "original": "原始", "hoenn": "丰缘", "sinnoh": "神奥",
+        "unova": "合众", "kalos": "卡洛斯", "partner": "搭档",
+        "world": "世界", "alolancap": "阿罗拉", "sinnohcap": "神奥",
+        # 帕底亚三牛（Showdown 命名无 -breed 后缀，单独补）
+        "paldeacombat": "帕底亚·斗战形态", "paldeablaze": "帕底亚·火舞形态",
+        "paldeaaqua": "帕底亚·水澜形态",
+    }
+    # 长后缀优先，避免 "ash"（小智版）误吃 "sandslash"（穿山王）的尾部
+    FORM_ORDERED = sorted(FORM_SUFFIX.items(), key=lambda kv: -len(kv[0]))
+
+    def zh_name(slug: str) -> str:
+        if slug in zh_pokemon:
+            return zh_pokemon[slug]
+        parts, cur = [], slug
+        while True:
+            if cur in zh_pokemon:  # 剥到本体立即停（防后缀误吃）
+                base = zh_pokemon[cur]
+                return f"{base}（{'·'.join(parts)}）" if parts else base
+            for suff, suff_zh in FORM_ORDERED:
+                if cur.endswith(suff) and len(cur) > len(suff):
+                    parts.insert(0, suff_zh)
+                    cur = cur[: -len(suff)]
+                    break
+            else:
+                return slug  # 无后缀可剥且非本体：兜底原名
 
     pokemon = {
         slug: {
-            "zh": zh_pokemon.get(slug, slug),
+            "zh": zh_name(slug),
             "types": [t.lower() for t in info["types"]],
             "stats": info["baseStats"],
         }
@@ -59,7 +105,7 @@ def load_damage_data() -> dict:
     }
     moves = {
         slug: {
-            "zh": zh_moves.get(slug, slug),
+            "zh": zh_moves.get(slug, slug.replace("-", "")),
             "power": info.get("basePower"),
             "type": str(info.get("type", "")).lower(),
             "category": str(info.get("category", "")).lower(),
