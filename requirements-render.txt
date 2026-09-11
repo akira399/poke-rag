@@ -1,0 +1,8 @@
+# Render 免费档专用依赖（单进程 Streamlit，无 torch/向量模型——省内存）
+streamlit==1.63.0
+requests==2.34.2
+openai==3.8.0
+rank-bm25==0.2.2
+jieba==0.42.1
+pillow==12.3.0
+numpy<3

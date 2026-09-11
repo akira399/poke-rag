@@ -3,7 +3,22 @@
 __pycache__/
 *.pyc
 
-# 数据是「可重建资产」：git 只存脚本，一条命令可重新拉取
+# 数据默认不入 git；以下例外随仓库分发（Render 免费档无法在容器内重建）
+# 卡片 + BM25 索引 + 规则数据（向量索引 chroma 仍排除，云端用精简检索）
+!data/cards/
+!data/cards/**
+!data/index/
+!data/index/bm25.json
+!data/raw/
+!data/raw/showdown/
+!data/raw/showdown/json/**
+data/raw/showdown/src/
+data/raw/pokeapi/
+data/raw/smogon/
+data/models/
+data/tmp_*.json
+
+# 数据是「可重建资产」：其余数据不进 git（本地可用脚本重建）
 data/
 
 # 敏感配置

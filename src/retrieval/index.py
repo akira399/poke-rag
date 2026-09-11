@@ -74,6 +74,20 @@ def build_index() -> None:
     Bm25Index().build(ids, docs, aliases).save(os.path.join(INDEX_DIR, "bm25.json"))
 
 
+_BM25_CACHE: "Bm25Index | None" = None
+_BM25_KEY: tuple | None = None
+
+
+def _get_bm25(docs: list[str], aliases: list[list[str]]) -> Bm25Index:
+    """BM25 索引模块级缓存：按文档数+内容指纹判断是否需要重建。"""
+    global _BM25_CACHE, _BM25_KEY
+    key = (len(docs), sum(len(d) for d in docs))
+    if _BM25_CACHE is None or _BM25_KEY != key:
+        _BM25_CACHE = Bm25Index().load(os.path.join(INDEX_DIR, "bm25.json"), docs, aliases)
+        _BM25_KEY = key
+    return _BM25_CACHE
+
+
 def search(query: str, top_k: int = 20) -> list[tuple[str, float]]:
     """双路召回 + RRF 融合；本地 embedding 不可用时降级为 BM25-only。
 
@@ -87,7 +101,7 @@ def search(query: str, top_k: int = 20) -> list[tuple[str, float]]:
 
     query_enriched = expand(query)
     aliases = [c.get("aliases", []) for c in cards]
-    bm25 = Bm25Index().load(os.path.join(INDEX_DIR, "bm25.json"), docs, aliases)
+    bm25 = _get_bm25(docs, aliases)   # 模块级缓存：避免每次查询重建（内存与延迟）
     bm25_hits = bm25.search(query_enriched, top_k)
     bm25_rank = [cid for cid, _ in bm25_hits]
 

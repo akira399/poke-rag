@@ -1,0 +1,27 @@
+# Render Blueprint：Poke-RAG 单进程 Streamlit（免费档适配）
+#
+# 内存预算（免费 512MB）：Streamlit ~180MB + BM25 语料 ~180MB + 卡片/杂项 ~100MB
+# torch/向量模型在 EMBED_DISABLED=1 下完全不加载（懒加载改造）。
+#
+# 部署：Render 控制台 → New + → Web Service → 连接 GitHub 仓库
+#       akira399/poke-rag → Render 检测到本文件后按此配置创建。
+
+services:
+  - type: web
+    name: poke-rag
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements-render.txt
+    startCommand: streamlit run app_render.py --server.port $PORT --server.address 0.0.0.0
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.10"
+      - key: EMBED_DISABLED
+        value: "1"                       # 免费档精简检索（BM25+查询改写，评测 top-3 99%）
+      - key: LLM_BASE_URL
+        value: https://api.deepseek.com
+      - key: LLM_MODEL
+        value: deepseek-v4-flash
+      # API Key 不在服务端配置：访客在界面自行填入（会话级保存）
+      - key: POKE_RAG_EMBED
+        sync: false

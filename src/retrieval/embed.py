@@ -52,9 +52,7 @@ try:  # huggingface_hub 底层使用 httpx，其 Client 构造函数接受 verif
 except ImportError:
     pass
 
-from sentence_transformers import SentenceTransformer  # noqa: E402
-
-_model: SentenceTransformer | None = None
+_model = None  # 惰性加载：BM25-only 部署无需安装/导入 torch（省 ~200MB 内存）
 _LOAD_ERROR: str | None = None
 
 
@@ -64,6 +62,8 @@ def get_model() -> SentenceTransformer:
         if _LOAD_ERROR:
             raise RuntimeError(_LOAD_ERROR)  # 会话内失败过一次不再重试
         try:
+            from sentence_transformers import SentenceTransformer
+
             # 本地目录（data/models/<名>）存在则离线加载；
             # 否则 _MODEL_DIR 是完整 HF repo id，SentenceTransformer 自动从 Hub 下载
             local_dir = os.path.join(_MODELS_ROOT, _MODEL_DIR.split("/")[-1])

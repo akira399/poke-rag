@@ -46,6 +46,7 @@ def _engine(llm_cfg: dict | None) -> RAGEngine:
 
 
 # ---------------------------------------------------------------- 聊天
+@gpu_gate
 def chat_fn(message: str, history: list, session_key: str, session_url: str,
             session_model: str):
     """处理一轮问答；返回（流式聚合的答案, 更新后的会话状态）。"""
@@ -184,12 +185,20 @@ def build_ui() -> gr.Blocks:
                 sbtn.click(search_fn, q, sout)
 
             with gr.Tab("⚙️ 模型设置"):
-                gr.Markdown("填写你自己的 API Key（仅保存在当前浏览器会话，"
-                            "刷新页面后需重新填写；服务器不存储）。")
-                k = gr.Textbox(label="DeepSeek API Key", type="password")
-                u = gr.Textbox(label="接口地址（默认 DeepSeek 官方）",
-                               value=cfg["llm"]["base_url"])
-                m = gr.Textbox(label="模型名", value=cfg["llm"]["model"])
+                gr.Markdown(
+                    "支持**任何 OpenAI 兼容服务**（DeepSeek / 通义 / Kimi / 硅基流动 / "
+                    "OpenAI 等），填写对应接口地址、Key 与模型名即可切换。\n\n"
+                    "**推荐 DeepSeek**（国内直连、便宜）："
+                    "[点此注册并在 API Keys 页创建](https://platform.deepseek.com/)。\n\n"
+                    "Key 仅保存在当前浏览器会话，刷新后需重填；服务器不存储、不共享。")
+                k = gr.Textbox(label="API Key", type="password",
+                               placeholder="sk-...")
+                u = gr.Textbox(label="接口地址（Base URL）",
+                               value=cfg["llm"]["base_url"],
+                               info="DeepSeek: https://api.deepseek.com")
+                m = gr.Textbox(label="模型名", value=cfg["llm"]["model"],
+                               info="推荐 deepseek-v4-flash（便宜够用）；"
+                                    "通义: qwen-plus；Kimi: moonshot-v1-8k")
                 save = gr.Button("保存到本会话", variant="primary")
                 hint = gr.Markdown()
                 save.click(_save_settings, [k, u, m], [state_key, state_url, state_model, hint])

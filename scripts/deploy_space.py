@@ -111,6 +111,8 @@ def main() -> int:
     ap.add_argument("--token", required=True, help="HF write token（hf_...）")
     ap.add_argument("--repo", default="siyixly/poke-rag", help="Space 仓库名")
     ap.add_argument("--private", action="store_true", help="私有 Space")
+    ap.add_argument("--hardware", default="zero-a10g",
+                    help="Space 硬件（免费账号用 zero-a10g；PRO 可用 cpu-basic）")
     ap.add_argument("--staging", default=os.path.join(tempfile.gettempdir(), "poke-rag-space"))
     args = ap.parse_args()
 
@@ -123,6 +125,7 @@ def main() -> int:
     print(f"创建 Space: {space_id}（sdk=gradio, {'private' if args.private else 'public'}）")
     url = api.create_repo(
         repo_id=space_id, repo_type="space", space_sdk="gradio",
+        space_hardware=args.hardware,
         private=args.private, exist_ok=True,
     )
     print("Space 地址:", getattr(url, "raw_url", url) if not isinstance(url, str) else url)

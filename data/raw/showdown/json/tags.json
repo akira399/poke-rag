@@ -1,0 +1,268 @@
+{
+  "Tags": {
+    "physical": {
+      "name": "Physical"
+    },
+    "special": {
+      "name": "Special"
+    },
+    "status": {
+      "name": "Status"
+    },
+    "mega": {
+      "name": "Mega"
+    },
+    "gigantamax": {
+      "name": "Gigantamax"
+    },
+    "mythical": {
+      "name": "Mythical"
+    },
+    "sublegendary": {
+      "name": "Sub-Legendary"
+    },
+    "restrictedlegendary": {
+      "name": "Restricted Legendary"
+    },
+    "ultrabeast": {
+      "name": "Ultra Beast"
+    },
+    "paradox": {
+      "name": "Paradox"
+    },
+    "pokestar": {
+      "name": "Pokestar"
+    },
+    "zmove": {
+      "name": "Z-Move"
+    },
+    "maxmove": {
+      "name": "Max Move"
+    },
+    "contact": {
+      "name": "Contact"
+    },
+    "sound": {
+      "name": "Sound"
+    },
+    "powder": {
+      "name": "Powder"
+    },
+    "fist": {
+      "name": "Fist"
+    },
+    "pulse": {
+      "name": "Pulse"
+    },
+    "bite": {
+      "name": "Bite"
+    },
+    "bullet": {
+      "name": "Bullet"
+    },
+    "dance": {
+      "name": "Dance"
+    },
+    "slicing": {
+      "name": "Slicing"
+    },
+    "wind": {
+      "name": "Wind"
+    },
+    "twoturnmove": {
+      "name": "Two-turn move"
+    },
+    "recharge": {
+      "name": "Recharge"
+    },
+    "suppressedbygravity": {
+      "name": "Suppressed by Gravity"
+    },
+    "boostedbysheerforce": {
+      "name": "Boosted by Sheer Force"
+    },
+    "bypassprotect": {
+      "name": "Bypasses Protect"
+    },
+    "nonreflectable": {
+      "name": "Nonreflectable"
+    },
+    "nonmirror": {
+      "name": "Nonmirror"
+    },
+    "nonsnatchable": {
+      "name": "Nonsnatchable"
+    },
+    "bypasssubstitute": {
+      "name": "Bypasses Substitutes"
+    },
+    "gmaxmove": {
+      "name": "G-Max Move"
+    },
+    "uber": {
+      "name": "Uber"
+    },
+    "ou": {
+      "name": "OU"
+    },
+    "uubl": {
+      "name": "UUBL"
+    },
+    "uu": {
+      "name": "UU"
+    },
+    "rubl": {
+      "name": "RUBL"
+    },
+    "ru": {
+      "name": "RU"
+    },
+    "nubl": {
+      "name": "NUBL"
+    },
+    "nu": {
+      "name": "NU"
+    },
+    "publ": {
+      "name": "PUBL"
+    },
+    "pu": {
+      "name": "PU"
+    },
+    "zubl": {
+      "name": "ZUBL"
+    },
+    "zu": {
+      "name": "ZU"
+    },
+    "nfe": {
+      "name": "NFE"
+    },
+    "lc": {
+      "name": "LC"
+    },
+    "captier": {
+      "name": "CAP Tier"
+    },
+    "caplc": {
+      "name": "CAP LC"
+    },
+    "capnfe": {
+      "name": "CAP NFE"
+    },
+    "ag": {
+      "name": "AG"
+    },
+    "duber": {
+      "name": "DUber"
+    },
+    "dou": {
+      "name": "DOU"
+    },
+    "dbl": {
+      "name": "DBL"
+    },
+    "duu": {
+      "name": "DUU"
+    },
+    "dnu": {
+      "name": "DNU"
+    },
+    "ndag": {
+      "name": "ND AG"
+    },
+    "nduber": {
+      "name": "ND Uber"
+    },
+    "ndou": {
+      "name": "ND OU"
+    },
+    "nduubl": {
+      "name": "ND UUBL"
+    },
+    "nduu": {
+      "name": "ND UU"
+    },
+    "ndrubl": {
+      "name": "ND RUBL"
+    },
+    "ndru": {
+      "name": "ND RU"
+    },
+    "ndnfe": {
+      "name": "ND NFE"
+    },
+    "ndlc": {
+      "name": "ND LC"
+    },
+    "past": {
+      "name": "Past"
+    },
+    "truepast": {
+      "name": "True Past"
+    },
+    "pastunobtainable": {
+      "name": "Past Unobtainable"
+    },
+    "future": {
+      "name": "Future"
+    },
+    "lgpe": {
+      "name": "LGPE"
+    },
+    "unobtainable": {
+      "name": "Unobtainable"
+    },
+    "cap": {
+      "name": "CAP"
+    },
+    "custom": {
+      "name": "Custom"
+    },
+    "nonexistent": {
+      "name": "Nonexistent"
+    },
+    "introducedgen": {
+      "name": "Introduced Gen"
+    },
+    "height": {
+      "name": "Height"
+    },
+    "weight": {
+      "name": "Weight"
+    },
+    "hp": {
+      "name": "HP"
+    },
+    "atk": {
+      "name": "Atk"
+    },
+    "def": {
+      "name": "Def"
+    },
+    "spa": {
+      "name": "SpA"
+    },
+    "spd": {
+      "name": "SpD"
+    },
+    "spe": {
+      "name": "Spe"
+    },
+    "bst": {
+      "name": "BST"
+    },
+    "basepower": {
+      "name": "Base Power"
+    },
+    "priority": {
+      "name": "Priority"
+    },
+    "accuracy": {
+      "name": "Accuracy"
+    },
+    "maxpp": {
+      "name": "Max PP"
+    }
+  }
+}
