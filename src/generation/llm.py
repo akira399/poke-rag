@@ -11,10 +11,10 @@ from collections.abc import Iterator
 from src.config import load
 
 
-def _client():
+def _client(llm_cfg: dict | None = None):
     from openai import OpenAI
 
-    cfg = load()["llm"]
+    cfg = llm_cfg or load()["llm"]
     return OpenAI(base_url=cfg["base_url"], api_key=cfg["api_key"])
 
 
@@ -29,17 +29,18 @@ def stream_chat(messages: list[dict]) -> Iterator[str]:
             yield event["text"]
 
 
-def stream_chat_events(messages: list[dict]) -> Iterator[dict]:
+def stream_chat_events(messages: list[dict], llm_cfg: dict | None = None) -> Iterator[dict]:
     """流式生成的事件流：{"type": "reasoning"|"content", "text": ...}。
 
     reasoning 为模型的思考过程（deepseek-v4 系列返回 reasoning_content），
     单独作为事件下发——UI 可像思维链一样展示，不混入答案正文。
     """
-    cfg = _client()
-    resp = cfg.chat.completions.create(
-        model=load()["llm"]["model"],
+    cfg_all = load()
+    llm = llm_cfg or cfg_all["llm"]
+    resp = _client(llm).chat.completions.create(
+        model=llm.get("model") or cfg_all["llm"]["model"],
         messages=messages,
-        temperature=load()["llm"]["temperature"],
+        temperature=llm.get("temperature", cfg_all["llm"].get("temperature", 0.2)),
         stream=True,
     )
     for chunk in resp:

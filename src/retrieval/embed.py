@@ -15,17 +15,19 @@ _MODELS_ROOT = os.path.join(
     "data", "models",
 )
 
-# 模型目录 -> (是否 e5 系需前缀)。优先取轻量模型，存在 bge-m3 时优先级更高？——不：
-# 默认取 e5-small；满配机器可把 EMBED_MODEL 环境变量设为 bge-m3。
+# 模型候选：本地目录优先；云端/无本地目录时按完整 HF repo id 自动下载。
+# (本地目录名或 HF repo id, 是否 e5 系需前缀)
 _MODEL_CANDIDATES = [
-    ("multilingual-e5-small", True),   # 轻量默认（384 维）
-    ("bge-m3", False),                 # 满配选项（1024 维，需大内存）
+    ("intfloat/multilingual-e5-small", True),   # 轻量默认（384 维）
+    ("BAAI/bge-m3", False),                     # 满配选项（1024 维，需大内存）
 ]
-_MODEL_DIR = os.environ.get("EMBED_MODEL", "multilingual-e5-small")
+_MODEL_DIR = os.environ.get("EMBED_MODEL", "intfloat/multilingual-e5-small")
 _IS_E5 = True
-if not os.path.isdir(os.path.join(_MODELS_ROOT, _MODEL_DIR)):
+if not (os.path.isdir(os.path.join(_MODELS_ROOT, _MODEL_DIR.replace("/", os.sep)))
+        or os.path.isdir(os.path.join(_MODELS_ROOT, os.path.basename(_MODEL_DIR)))):
+    # 本地无缓存目录：逐个候选找本地，找不到则保持完整 repo id（SentenceTransformer 会从 Hub 下载）
     for name, is_e5 in _MODEL_CANDIDATES:
-        if os.path.isdir(os.path.join(_MODELS_ROOT, name)):
+        if os.path.isdir(os.path.join(_MODELS_ROOT, name.split("/")[-1])):
             _MODEL_DIR, _IS_E5 = name, is_e5
             break
 
@@ -62,7 +64,10 @@ def get_model() -> SentenceTransformer:
         if _LOAD_ERROR:
             raise RuntimeError(_LOAD_ERROR)  # 会话内失败过一次不再重试
         try:
-            model_path = os.path.join(_MODELS_ROOT, _MODEL_DIR)
+            # 本地目录（data/models/<名>）存在则离线加载；
+            # 否则 _MODEL_DIR 是完整 HF repo id，SentenceTransformer 自动从 Hub 下载
+            local_dir = os.path.join(_MODELS_ROOT, _MODEL_DIR.split("/")[-1])
+            model_path = local_dir if os.path.isdir(local_dir) else _MODEL_DIR
             _model = SentenceTransformer(
                 model_path,
                 model_kwargs={"low_cpu_mem_usage": True},

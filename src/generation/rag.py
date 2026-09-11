@@ -29,8 +29,10 @@ class Retriever:
 
 
 class RAGEngine:
-    def __init__(self):
-        self.cfg = load()
+    def __init__(self, llm_cfg: dict | None = None):
+        # llm_cfg：会话级覆盖（云端多用户各自填 API Key），为 None 时用全局配置
+        self.cfg = load({"llm": llm_cfg} if llm_cfg else None)
+        self._llm_cfg = self.cfg["llm"]
 
     def answer(self, query: str) -> Iterator[dict]:
         """流式回答，元素为 {type: delta|citation|citations|reject|meta}。
@@ -101,7 +103,7 @@ class RAGEngine:
         """调模型并转发事件：reasoning（思考过程）与 delta（答案碎片）。"""
         from src.generation.llm import stream_chat_events
 
-        for event in stream_chat_events(messages):
+        for event in stream_chat_events(messages, self._llm_cfg):
             if event["type"] == "reasoning":
                 yield {"type": "reasoning", "text": event["text"]}
             else:

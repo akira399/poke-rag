@@ -13,7 +13,7 @@ CONFIG_PATH = os.path.join(_ROOT, "config.local.json")
 
 _DEFAULTS = {
     "llm": {
-        "base_url": "",
+        "base_url": "https://api.deepseek.com",
         "api_key": "",
         "model": "deepseek-v4-flash",
         "temperature": 0.2,
@@ -29,7 +29,9 @@ _DEFAULTS = {
 }
 
 
-def load() -> dict:
+def load(overrides: dict | None = None) -> dict:
+    """加载配置；overrides 为运行时覆盖（如用户在界面填的 API Key），
+    优先级最高：overrides > 环境变量 > config.local.json > 默认值。"""
     cfg = json.loads(json.dumps(_DEFAULTS))
     if os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH, encoding="utf-8") as f:
@@ -40,6 +42,11 @@ def load() -> dict:
     cfg["llm"]["base_url"] = os.environ.get("LLM_BASE_URL", cfg["llm"]["base_url"])
     cfg["llm"]["api_key"] = os.environ.get("LLM_API_KEY", cfg["llm"]["api_key"])
     cfg["llm"]["model"] = os.environ.get("LLM_MODEL", cfg["llm"]["model"])
+    if overrides:
+        for section in ("llm", "rag"):
+            cfg[section].update(
+                {k: v for k, v in (overrides.get(section) or {}).items() if v}
+            )
     return cfg
 
 
