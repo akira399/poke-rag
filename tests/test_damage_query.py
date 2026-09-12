@@ -65,20 +65,48 @@ class TestCalculate:
         assert "会心一击" in ctx          # 暴击概率也要给
 
     def test_probability_reported_when_not_guaranteed(self):
+        """主线口径下龙爪打喷火龙是「看概率」分支，必须报告一击击杀概率。"""
         if not _HAS_DATA:
             import pytest
             pytest.skip("数据未生成")
-        ctx = try_build_context("快龙用龙爪打喷火龙多少血")
+        ctx = try_build_context("朱紫里快龙用龙爪打喷火龙多少血")
         assert "一击击杀概率" in ctx
 
-    def test_mainline_formula_disclaimer(self):
-        """站点默认环境是《宝可梦冠军》（66 点点数制），伤害引擎必须声明
-        自己用的是主线公式口径，避免模型把两者混在一起。"""
+    def test_default_champions_caliber(self):
+        """站点默认环境是《宝可梦冠军》：不提游戏名时按冠军口径计算
+        （50 级、个体值恒满、努力值 66 点制、无经典攻击道具）。"""
         if not _HAS_DATA:
             import pytest
             pytest.skip("数据未生成")
         ctx = try_build_context("快龙用龙爪打喷火龙多少血")
-        assert "主线" in ctx and "宝可梦冠军" in ctx
+        assert "《宝可梦冠军》" in ctx and "66 点" in ctx
+        assert "32 点" in ctx                       # 满投入按点数制表述
+        assert "冠军道具池无讲究头带" in ctx          # 最有利情形不含主线道具倍率
+
+    def test_mainline_marker_switches_caliber(self):
+        """明确提到主线游戏（朱紫/Gen9）时切回主线口径（252 努力值 + 道具端点）。"""
+        if not _HAS_DATA:
+            import pytest
+            pytest.skip("数据未生成")
+        ctx = try_build_context("朱紫主线里快龙用龙爪打喷火龙多少血")
+        assert "主线《宝可梦》系列对战公式" in ctx
+        assert "拉满努力值 252" in ctx
+
+    def test_detect_environment(self):
+        from src.rules.damage_query import detect_environment
+        assert detect_environment("快龙用龙爪打喷火龙多少血") == "champions"
+        assert detect_environment("朱紫里快龙用龙爪打喷火龙多少血") == "mainline"
+        assert detect_environment("Gen9 OU 环境下快龙用龙爪打喷火龙多少血") == "mainline"
+
+    def test_champion_move_patch_applied(self):
+        """冠军口径应用招式补丁：暗黑爆破威力 85→90；主线口径不变。"""
+        if not _HAS_DATA:
+            import pytest
+            pytest.skip("数据未生成")
+        champ = try_build_context("索罗亚克用暗黑爆破打喷火龙多少血")
+        assert "威力按 90 计算" in champ
+        main = try_build_context("朱紫里索罗亚克用暗黑爆破打喷火龙多少血")
+        assert "威力按 90" not in main
 
     def test_missing_info_asks_user(self):
         ctx = try_build_context("岩崩打喷火龙多少血")
@@ -127,14 +155,18 @@ class TestExtremeScenarios:
         assert "最有利情形" in ctx and "无论随机浮动如何都能一击击杀" in ctx
 
     def test_uncertain_case_shows_both_ends(self):
-        if not _HAS_DATA:
-            import pytest
-            pytest.skip("数据未生成")
-        ctx = try_build_context("快龙用龙爪打喷火龙多少血")
+        ctx = try_build_context("朱紫里快龙用龙爪打喷火龙多少血")
         assert "极端情况分析" in ctx
         assert "结果取决于培养配置" in ctx
+
+    def test_champions_certain_no_ko_branch(self):
+        """冠军口径无道具端点：龙爪打喷火龙（2 倍弱点）任何配置都无法一击击杀，
+        结论应落入「一定打不死」分支，且不再出现主线的「看概率」判定。"""
+        ctx = try_build_context("快龙用龙爪打喷火龙多少血")
+        assert "无法一击击杀" in ctx
         assert "最不利情形" in ctx and "最有利情形" in ctx
-        assert "一定打不死" in ctx and "看概率" in ctx
+        assert "一定打不死" in ctx
+        assert "看概率" not in ctx
 
     def test_scenarios_cover_ev_nature_item_weather(self):
         if not _HAS_DATA:

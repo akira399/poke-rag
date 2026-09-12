@@ -38,6 +38,47 @@ OPTIONAL_PARAMS = [
 # 对结果影响最大的补充项（回答里应提醒用户）
 KEY_SUPPLEMENTS = ["努力值投入", "性格", "持有道具", "特性"]
 
+# ---------------------------------------------------------------------------
+# 双口径：站点默认环境是《宝可梦冠军》（Pokémon Champions），问题明确提到
+# 主线游戏/环境时切回主线。冠军数值改动整理自官方与社区资料
+# （详见 data/cards/game.jsonl），公式与主线一致，只换前提与补丁表。
+# ---------------------------------------------------------------------------
+_MAINLINE_MARKERS = ("朱紫", "朱／紫", "朱/紫", "朱", "紫", "主线", "旧作", "前作", "传统对战")
+
+# 冠军已确认的招式改动（主线数值不动，仅冠军口径生效；键为项目内部 slug）
+CHAMPION_MOVE_PATCH = {
+    "nightdaze": {"basePower": 90},      # 暗黑爆破 85→90
+    "spiritshackle": {"basePower": 90},  # 缝影 80→90
+    "tropkick": {"basePower": 85},       # 热带踢 70→85
+    "psyshieldbash": {"basePower": 90},  # 屏障猛攻 70→90
+    "snaptrap": {"type": "steel"},       # 捕兽夹 草→钢（伽勒尔泥巴鱼获本系）
+}
+
+# 冠军道具池无经典攻击道具（讲究头带/讲究眼镜/生命宝珠），
+# 「最有利情形」不能再按主线的 ×1.5 道具倍率取端点。
+CHAMPION_ITEM_NOTE = "冠军道具池无讲究头带/生命宝珠等攻击道具，不含道具加成"
+
+
+def detect_environment(query: str) -> str:
+    """从问题中判断对战环境：默认《宝可梦冠军》，提到主线游戏/环境时切回主线。"""
+    if any(m in query for m in _MAINLINE_MARKERS):
+        return "mainline"
+    import re as _re
+
+    if _re.search(r"\bgen\s*9\b|\bou\b", query, _re.IGNORECASE):
+        return "mainline"
+    return "champions"
+
+
+def caliber_line(env: str) -> str:
+    """计算口径声明：放进计算前提，防止模型把两套数值混在一起。"""
+    if env == "mainline":
+        return ("计算口径：主线《宝可梦》系列对战公式（等级、努力值、性格等均按主线规则）；"
+                "《宝可梦冠军》采用 66 点能力值点数制且麻痹等状态数值不同，如需冠军口径请说明。")
+    return ("计算口径：《宝可梦冠军》对战环境——对战固定 50 级、个体值恒满、"
+            "努力值为 66 点点数制（1 点≈4~8 努力值，32 点≈252 努力值等效，伤害公式与主线一致）；"
+            "麻痹无法行动概率 12.5%、睡眠最多 2 回合、冰冻最多 3 回合。")
+
 
 def is_damage_query(query: str) -> bool:
     """是否为伤害计算类问题。"""
@@ -110,6 +151,8 @@ def format_missing(parsed: dict) -> str:
     lines.append("若用户只想知道粗略结果，可说明将采用这些默认假设：")
     for item in OPTIONAL_PARAMS[:2]:
         lines.append(f"· {item}")
+    if parsed.get("env", "champions") == "champions":
+        lines.append(f"· 持有道具（注意：{CHAMPION_ITEM_NOTE}）")
     lines.append("请向用户逐项追问缺失信息（不要自行假设数值）。")
     return "\n".join(lines)
 
@@ -133,7 +176,13 @@ def extreme_scenarios(parsed: dict, atk_info: dict, mv_info: dict, df_info: dict
     · 最不利情形：我方零投入、无道具天气；对方血量与防御都拉满且有性格加成
     · 最有利情形：我方努力值拉满 + 性格加成 + 道具 + 有利天气；对方零投入
     两端的击杀结论决定了「什么情况下必死 / 一定不死 / 看概率」。
+
+    双口径差异（数值换算：32 点 ≈ 252 努力值等效，公式本身一致）：
+    · 冠军口径用 66 点点数制表述投入（满投入 = 32 点）；
+    · 冠军道具池无讲究头带/生命宝珠，最有利情形不含道具倍率。
     """
+    env = parsed.get("env", "champions")
+    champions = env == "champions"
     atk_stat = "atk" if physical else "spa"
     def_stat = "def" if physical else "spd"
     atk_base = atk_info["baseStats"][atk_stat]
@@ -161,6 +210,20 @@ def extreme_scenarios(parsed: dict, atk_info: dict, mv_info: dict, df_info: dict
                 "dmg_min": min(rolls), "dmg_max": max(rolls),
                 "atk_v": atk_v, "def_v": def_v}
 
+    if champions:
+        return [
+            {"name": "最不利情形（我方零投入，对方满血量满防御并有性格加成）",
+             "detail": "我方努力值 0 点、无性格加成、无道具无天气；"
+                       "对方血量与防御各 32 点（满投入）并有性格加成",
+             "result": run(0, 1.0, 1.0, False, 252, 1.1, 252)},
+            {"name": "中间情形（双方常规投入）",
+             "detail": "双方各把关键属性拉到 32 点（≈252 努力值等效）并有性格加成",
+             "result": run(252, 1.1, 1.0, False, 252, 1.1, 252)},
+            {"name": "最有利情形（我方全加成，对方零投入）",
+             "detail": f"我方进攻 32 点 + 性格加成 + 有利天气（{CHAMPION_ITEM_NOTE}）；对方 0 点",
+             "result": run(252, 1.1, 1.0, True, 0, 1.0, 0)},
+        ]
+
     return [
         {"name": "最不利情形（我方零投入，对方满血量满防御并有性格加成）",
          "detail": "我方努力值 0、无性格加成、无道具无天气；对方血量与防御努力值拉满",
@@ -182,6 +245,12 @@ def format_result(parsed: dict) -> str:
                                   pokedata.pokemon(defender_slug))
     if not (atk_info and mv_info and df_info):
         return format_missing(parsed)
+
+    env = parsed.get("env", "champions")
+    champions = env == "champions"
+    move_patch = dict(CHAMPION_MOVE_PATCH.get(move_slug, {})) if champions else {}
+    if move_patch:
+        mv_info = {**mv_info, **move_patch}
 
     level = parsed["level"]
     power = mv_info.get("basePower") or 0
@@ -233,8 +302,24 @@ def format_result(parsed: dict) -> str:
         provided.append(f"等级 {level} 级")
     else:
         defaulted.append("等级（按默认 50 级）")
-    defaulted += ["个体值（按满分 31）", "努力值（按未投入 0）", "性格（按无加成）",
-                  "持有道具（按无）", "特性（按无影响）", "天气场地（按无影响）"]
+    defaulted += (["个体值（冠军规则恒为满分）", "努力值（按 66 点制未投入 0 点）", "性格（按无加成）",
+                   "持有道具（按无）", "特性（按无影响）", "天气场地（按无影响）"]
+                  if champions else
+                  ["个体值（按满分 31）", "努力值（按未投入 0）", "性格（按无加成）",
+                   "持有道具（按无）", "特性（按无影响）", "天气场地（按无影响）"])
+
+    patch_bits = []
+    if "basePower" in move_patch:
+        mainline_power = (pokedata.move(move_slug) or {}).get("basePower")
+        patch_bits.append(f"威力按 {move_patch['basePower']} 计算"
+                          + (f"（主线为 {mainline_power}）" if mainline_power else ""))
+    if "type" in move_patch:
+        mainline_type = str((pokedata.move(move_slug) or {}).get("type", "")).lower()
+        patch_bits.append(f"属性按{pokedata.TYPE_ZH.get(move_patch['type'], move_patch['type'])}系计算"
+                          + (f"（主线为{pokedata.TYPE_ZH.get(mainline_type, mainline_type)}系）"
+                             if mainline_type else ""))
+    patch_note = (f"《宝可梦冠军》招式改动：「{_zh(move_slug, 'move')}」{'、'.join(patch_bits)}。"
+                  if patch_bits else "")
 
     lines = [
         "【第 0 节 · 计算前提（必须最先讲给用户）】",
@@ -244,8 +329,8 @@ def format_result(parsed: dict) -> str:
         f"本次采用默认值的参数：{'、'.join(defaulted)}",
         "默认值的大白话解释：个体值满分 = 天赋拉满；努力值 0 = 完全没有培养投入；"
         "性格无加成 = 中性性格。",
-        "计算口径：主线《宝可梦》系列对战公式（等级、努力值、性格等均按主线规则）；"
-        "《宝可梦冠军》采用 66 点能力值点数制，数值口径与本计算不同，如需冠军口径请说明。",
+        caliber_line(env),
+        *([patch_note] if patch_note else []),
         f"⚠️ 必须提醒用户：这些默认值会明显影响结果，补充 "
         f"{'、'.join(KEY_SUPPLEMENTS)} 后才能得到更准确的答案。",
         "",
@@ -367,6 +452,7 @@ def try_build_context(query: str) -> str | None:
     if not is_damage_query(query):
         return None
     parsed = parse(query)
+    parsed["env"] = detect_environment(query)
     if parsed["missing"]:
         # 缺宝可梦/招式等硬信息 → 让 LLM 追问；仅缺等级则按默认继续算
         hard_missing = [m for m in parsed["missing"] if "等级" not in m]
