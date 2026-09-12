@@ -96,8 +96,8 @@ def main() -> None:
             ".venv/bin/pip install -q -r requirements-render.txt "
             "-i https://pypi.tuna.tsinghua.edu.cn/simple && .venv/bin/python -V"
         )),
-        ("unit file", f"sudo tee /etc/systemd/system/poke-rag.service > /dev/null << 'EOF'\n{UNIT}\nEOF\nsystemctl daemon-reload"),
-        ("start", "systemctl enable --now poke-rag && sleep 8 && systemctl is-active poke-rag"),
+        ("unit file", f"sudo tee /etc/systemd/system/poke-rag.service > /dev/null << 'EOF'\n{UNIT}\nEOF\nsudo systemctl daemon-reload"),
+        ("start", "sudo systemctl enable --now poke-rag && sleep 8 && systemctl is-active poke-rag"),
         ("health", "sleep 3; curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8501"),
     ]
     for name, cmd in deploy_steps:
