@@ -8,7 +8,7 @@
         --llm-api-key <站点共享 Key> \\
         --llm-base-url https://open.bigmodel.cn/api/paas/v4 \\
         --llm-model glm-4.7-flash \\
-        --free-per-hour 10 --free-per-day 30 --free-global-per-day 500
+        --free-per-hour 10 --free-per-day 30 --free-global-per-day 500 \n        --fallback-base-url https://api.siliconflow.cn/v1 \n        --fallback-model <备用模型ID> --fallback-api-key <备用 Key>
 
 Key 只经命令行传入并写入服务器上的 systemd 单元（600 权限），不进仓库。
 
@@ -43,11 +43,17 @@ WantedBy=multi-user.target
 
 
 def build_unit(base_url: str, model: str, api_key: str | None,
-               free: dict | None = None) -> str:
-    """生成 systemd 单元。站点共享 Key 与限流额度作为 Environment 注入。"""
+               free: dict | None = None,
+               fallback: dict | None = None) -> str:
+    """生成 systemd 单元。站点共享 Key、限流额度、备用模型链作为 Environment 注入。"""
     lines = []
     if api_key:
         lines.append(f"Environment=LLM_API_KEY={api_key}\n")
+    if fallback and fallback.get("base_url") and fallback.get("model"):
+        lines.append(f"Environment=FALLBACK_BASE_URL={fallback['base_url']}\n")
+        lines.append(f"Environment=FALLBACK_MODEL={fallback['model']}\n")
+        if fallback.get("api_key"):
+            lines.append(f"Environment=FALLBACK_API_KEY={fallback['api_key']}\n")
     if free:
         for k, v in free.items():
             if v is not None:
@@ -85,6 +91,10 @@ def main() -> None:
     ap.add_argument("--free-per-hour", type=int, default=None)
     ap.add_argument("--free-per-day", type=int, default=None)
     ap.add_argument("--free-global-per-day", type=int, default=None)
+    # 备用模型（主模型被限流时自动降级，如硅基流动免费小模型）
+    ap.add_argument("--fallback-base-url", default=None)
+    ap.add_argument("--fallback-model", default=None)
+    ap.add_argument("--fallback-api-key", default=None)
     args = ap.parse_args()
 
     free_env = {
@@ -92,7 +102,13 @@ def main() -> None:
         "FREE_PER_DAY": args.free_per_day,
         "FREE_GLOBAL_PER_DAY": args.free_global_per_day,
     }
-    unit = build_unit(args.llm_base_url, args.llm_model, args.llm_api_key, free_env)
+    fallback = {
+        "base_url": args.fallback_base_url,
+        "model": args.fallback_model,
+        "api_key": args.fallback_api_key,
+    }
+    unit = build_unit(args.llm_base_url, args.llm_model, args.llm_api_key,
+                      free_env, fallback)
 
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())

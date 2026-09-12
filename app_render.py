@@ -102,7 +102,8 @@ def render_answer(prompt: str) -> tuple[str, dict]:
     status = st.status("🧠 正在处理…", expanded=True)
     thinking_ph = status.empty()
     answer_ph = st.empty()
-    rejected, thinking_len = False, 0
+    rejected, thinking_len, fell_back = False, 0, False
+    all_failed = ""
 
     for event in _engine(llm_cfg).answer(prompt):
         etype = event.get("type")
@@ -117,6 +118,9 @@ def render_answer(prompt: str) -> tuple[str, dict]:
             titles = "、".join(f"[{n}] {c.get('title_zh', '')}"
                                for n, c in citations.items())
             status.write(f"📚 知识片段：{titles}")
+        elif etype == "fallback":
+            status.write(f"🔄 {event['detail']}")
+            fell_back = True
         elif etype == "reasoning":
             thinking_len += len(event["text"])
             if thinking_len % 60 < len(event["text"]):
@@ -127,12 +131,20 @@ def render_answer(prompt: str) -> tuple[str, dict]:
         elif etype == "reject":
             rejected = True
             status.write("🚫 置信度不足，拒绝作答")
-    status.update(label="✅ 完成" if not rejected else "⚠️ 已拒答",
-                  state="complete" if not rejected else "error",
-                  expanded=False)
+        elif etype == "error":
+            all_failed = event["detail"]
+    state = "error" if (rejected or all_failed) else "complete"
+    label = "⚠️ 模型繁忙" if all_failed else ("⚠️ 已拒答" if rejected else "✅ 完成")
+    status.update(label=label, state=state, expanded=False)
+    if all_failed:
+        answer = (f"⏳ **暂时无法回答**\n\n{all_failed}")
+        answer_ph.markdown(answer)
+        return answer, {}
     answer = "".join(answer_parts) or "知识库中未找到相关信息。"
     if use_free:
         tip = f"\n\n<sub>🌐 免费模式 · 今日剩余 {quota['day_left']} 次</sub>"
+    if fell_back:
+        tip += "\n<sub>🔄 主模型繁忙，本次回答由备用模型生成</sub>"
     answer_ph.markdown(prompt_mod.linkify_citations(answer, citations) + tip)
     for n, card in citations.items():
         url = (card.get("source") or {}).get("url") or ""

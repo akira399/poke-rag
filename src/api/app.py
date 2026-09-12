@@ -45,8 +45,14 @@ def health():
 def chat(req: ChatRequest):
     """SSE：events 依次为 citations/delta* /done 或 reject。"""
     def gen():
-        for event in RAGEngine().answer(req.query):
-            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        try:
+            for event in RAGEngine().answer(req.query):
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            # 流中途异常（如不可重试的模型错误）不应静默断连，转成可读事件
+            err = {"type": "error",
+                   "detail": f"服务异常（{type(e).__name__}），请稍后重试。"}
+            yield f"data: {json.dumps(err, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(gen(), media_type="text/event-stream")
 

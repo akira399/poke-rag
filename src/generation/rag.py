@@ -30,7 +30,10 @@ class Retriever:
 
 class RAGEngine:
     def __init__(self, llm_cfg: dict | None = None):
-        # llm_cfg：会话级覆盖（云端多用户各自填 API Key），为 None 时用全局配置
+        # llm_cfg：会话级覆盖（云端多用户各自填 API Key），为 None 时用全局配置。
+        # 注意 self._llm_cfg 在两种模式下都非空（站点模式填的是全局配置），
+        # 因此不能靠"有没有 key"判断模式，必须记住是否由用户提供。
+        self._user_llm = bool(llm_cfg)
         self.cfg = load({"llm": llm_cfg} if llm_cfg else None)
         self._llm_cfg = self.cfg["llm"]
 
@@ -100,14 +103,23 @@ class RAGEngine:
         yield {"type": "done", "citations_ok": used <= valid, "citations_used": sorted(used)}
 
     def _generate(self, messages: list[dict]) -> Iterator[dict]:
-        """调模型并转发事件：reasoning（思考过程）与 delta（答案碎片）。"""
-        from src.generation.llm import stream_chat_events
+        """调模型并转发事件：reasoning（思考过程）与 delta（答案碎片）。
 
-        for event in stream_chat_events(messages, self._llm_cfg):
-            if event["type"] == "reasoning":
+        站点免费模式下走候选链——主模型被限流(429)/超时时自动切备用模型
+        （见 fallback.py）；用户自带 Key 时只用自己的 Key，不降级。
+        """
+        from src.generation.fallback import stream_with_fallback
+
+        for event in stream_with_fallback(self.cfg, messages, self._user_llm):
+            etype = event["type"]
+            if etype == "reasoning":
                 yield {"type": "reasoning", "text": event["text"]}
-            else:
+            elif etype == "content":
                 yield {"type": "delta", "text": event["text"]}
+            elif etype == "fallback":
+                yield {"type": "fallback", "detail": event["detail"]}
+            elif etype == "all_failed":
+                yield {"type": "error", "detail": event["detail"]}
 
     def _try_rule_tool(self, query: str):
         """规则工具分发：伤害计算优先，其次招式集合查询。

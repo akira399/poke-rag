@@ -35,6 +35,10 @@ _DEFAULTS = {
         "api_key": "",
         "dim": 0,
     },
+    # 备用模型链：主模型遇 429/超时/服务端错误时按顺序降级（如智谱主 +
+    # 硅基流动备）。仅在站点免费模式下生效；用户自带 Key 不参与降级
+    # （否则可用自己的 Key 触发降级、绕过站点限流）。
+    "llm_fallbacks": [],
     # 免费模式：站点侧持有一个共享 Key，访客无需配置即可使用。
     # 公开地址下该 Key 会被所有访客消耗，因此按客户端限流（见 free_quota.py）。
     "free": {
@@ -122,10 +126,24 @@ def load(overrides: dict | None = None) -> dict:
             user_cfg = json.load(f)
         for section in ("llm", "rag", "embed", "free"):
             cfg[section].update(user_cfg.get(section, {}))
+        if user_cfg.get("llm_fallbacks"):
+            cfg["llm_fallbacks"] = user_cfg["llm_fallbacks"]
     # 环境变量覆盖（密钥走环境变量是更规范的生产姿势）
     cfg["llm"]["base_url"] = os.environ.get("LLM_BASE_URL", cfg["llm"]["base_url"])
     cfg["llm"]["api_key"] = os.environ.get("LLM_API_KEY", cfg["llm"]["api_key"])
     cfg["llm"]["model"] = os.environ.get("LLM_MODEL", cfg["llm"]["model"])
+    if os.environ.get("LLM_FALLBACKS"):
+        try:
+            cfg["llm_fallbacks"] = json.loads(os.environ["LLM_FALLBACKS"])
+        except json.JSONDecodeError:
+            pass  # 配置写坏时忽略，不影响主模型可用性
+    # 备用链也支持用离散变量配置单个（部署脚本更易传参）
+    if os.environ.get("FALLBACK_BASE_URL") and os.environ.get("FALLBACK_MODEL"):
+        cfg["llm_fallbacks"] = [{
+            "base_url": os.environ["FALLBACK_BASE_URL"],
+            "model": os.environ["FALLBACK_MODEL"],
+            "api_key": os.environ.get("FALLBACK_API_KEY", ""),
+        }]
     cfg["embed"]["backend"] = os.environ.get("EMBED_BACKEND", cfg["embed"]["backend"])
     cfg["embed"]["base_url"] = os.environ.get("EMBED_BASE_URL", cfg["embed"]["base_url"])
     cfg["embed"]["model"] = os.environ.get("EMBED_MODEL_NAME", cfg["embed"]["model"])
