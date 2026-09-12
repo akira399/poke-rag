@@ -1,0 +1,12 @@
+{
+  "llm": {
+    "base_url": "https://api.deepseek.com",
+    "api_key": "sk-你的Key",
+    "model": "deepseek-flash",
+    "temperature": 0.2
+  },
+  "rag": {
+    "top_k_retrieve": 20,
+    "top_k_answer": 5
+  }
+}
