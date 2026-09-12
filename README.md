@@ -249,7 +249,7 @@ src/ui/                 深色主题与样式注入
 data/cards/             知识卡片（入 git，可直接用）
 data/index/             BM25 索引（入 git）
 data/raw/               原始数据（脚本重建，不入 git）
-tests/                  136 项单元测试 + UI 冒烟（AppTest 真实渲染）
+tests/                  141 项单元测试 + UI 冒烟（AppTest 真实渲染）
 docs/                   技术方案 / 数据清单 / 使用说明
 ```
 
