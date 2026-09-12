@@ -173,9 +173,11 @@ form[data-testid="stForm"] [data-baseweb="input"] input {
     min-height: 32px;
     background: transparent !important;
 }
-form[data-testid="stForm"] [data-testid="stFormSubmitButton"] button {
+    form[data-testid="stForm"] [data-testid="stFormSubmitButton"] button,
+    form [data-testid="stBaseButton-primaryFormSubmit"] {
     width: 38px !important;
     min-width: 38px !important;
+    max-width: 38px !important;
     height: 38px !important;
     padding: 0 !important;
     border: 1px solid rgba(148, 195, 255, .7) !important;
@@ -186,12 +188,16 @@ form[data-testid="stForm"] [data-testid="stFormSubmitButton"] button {
     font-size: 18px !important;
     line-height: 1 !important;
 }
-form[data-testid="stForm"] [data-testid="stFormSubmitButton"] button:hover {
+    form[data-testid="stForm"] [data-testid="stFormSubmitButton"] button:hover,
+    form [data-testid="stBaseButton-primaryFormSubmit"]:hover {
     background: rgba(96, 158, 248, .95) !important;
     transform: translateY(-1px);
 }
-form[data-testid="stForm"] [data-testid="stFormSubmitButton"] p {
-    display: none !important;
+    form[data-testid="stForm"] [data-testid="stFormSubmitButton"] p,
+    form [data-testid="stBaseButton-primaryFormSubmit"] p {
+    display: block !important;
+    margin: 0 !important;
+    line-height: 1 !important;
 }
 /* 下拉框 */
 [data-baseweb="select"] > div {
@@ -229,9 +235,11 @@ form[data-testid="stForm"] [data-testid="stFormSubmitButton"] p {
         margin-top: .85rem;
         padding: 6px 7px 6px 11px;
     }
-    form[data-testid="stForm"] [data-testid="stFormSubmitButton"] button {
+    form[data-testid="stForm"] [data-testid="stFormSubmitButton"] button,
+    form [data-testid="stBaseButton-primaryFormSubmit"] {
         width: 36px !important;
         min-width: 36px !important;
+        max-width: 36px !important;
         height: 36px !important;
     }
     .chat-empty { padding: 14px; gap: 10px; }
