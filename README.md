@@ -58,6 +58,46 @@ python scripts/deploy_tencent.py --host <ip> --password <pw> \
 > （访问量过大），`glm-4-flash-250414` 稳定可用，故站点默认选后者。
 > 限流计数在单进程内存中；若将来多副本部署，需换 Redis 等共享存储。
 
+### 🔄 主备模型自动降级（免费模型高峰期可用性保障）
+
+免费模型在访问高峰会返回 429。站点配置**主备模型链**：主模型（智谱 GLM-4-Flash）
+遇限流/超时/5xx 时，**自动切换到备用模型**（硅基流动免费小模型，如
+`Qwen/Qwen2.5-7B-Instruct`），用户侧只看到一句「已切换备用模型」，无需重试。
+
+```bash
+python scripts/deploy_tencent.py --host <ip> --password <pw> \
+    --llm-api-key <智谱 Key> \
+    --llm-base-url https://open.bigmodel.cn/api/paas/v4 \
+    --llm-model glm-4-flash-250414 \
+    --fallback-base-url https://api.siliconflow.cn/v1 \
+    --fallback-model Qwen/Qwen2.5-7B-Instruct \
+    --fallback-api-key <硅基流动 Key> \
+    --free-per-hour 10 --free-per-day 30 --free-global-per-day 500
+```
+
+设计要点（这几条决定了降级是否可靠）：
+
+- **只在「尚未产出内容」时切换**：OpenAI SDK 的流式请求在 `create()` 就抛错，
+  所以限流能在第一个字产出前被发现；若某模型已开始输出却中途失败，则**不切换**
+  ——否则会拼接出来自两个模型的半截答案。
+- **只对可重试错误降级**：限流(429)/超时/连接错误/5xx。鉴权失败(401)、
+  参数错误(400)、模型不存在(404) 直接暴露——否则会掩盖真实配置问题。
+- **用户自备 Key 不参与降级**：否则访客可借降级绕过站点限流。
+- 全部模型失败时给出友好文案，引导用户稍后重试或填自己的 Key。
+
+### 🔒 密钥安全（为什么前端拿不到 Key）
+
+**免费 API 的 Key 绝不能出现在浏览器里**（前端 JS 里的 Key 等于公开）。
+本项目从架构上保证这一点：
+
+- 站点 Key 存在**服务器**的 systemd 配置中（权限 `600`，仅 root 可读），
+  经环境变量注入 Python 进程；
+- Streamlit 是**服务端渲染**：浏览器只收到渲染后的 HTML，Key 从不进入页面
+  或 JS（实测：抓取线上页面与接口，Key 出现 0 次）；
+- 用户自填的 Key 只存在服务器**会话内存**，不写 Cookie、不下发前端；
+- `/api/settings` 等接口只返回脱敏 Key（`sk-***abcd`）；
+- 本地完整版另有 FastAPI 中转（`src/api/app.py`），同样不把 Key 发给浏览器。
+
 **免费向量检索（可选增强）**：项目默认走 BM25 关键词检索（top-3 命中 99%，零成本）。
 若想开启混合检索，可用硅基流动**免费**的 `BAAI/bge-m3`（正是本项目原设计的向量模型）
 或腾讯 `hunyuan-embedding`——配置走环境变量即可，低配服务器无需安装 PyTorch：
