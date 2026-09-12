@@ -43,3 +43,24 @@ def test_examples_present(app):
     texts = [b.label for b in app.button]
     assert "快龙怕什么属性？" in texts
     assert "保存到本会话" in texts
+
+
+def test_chat_composer_structure(app):
+    """聊天 Composer 是普通表单，避免 st.chat_input 的自动滚动副作用。"""
+    assert any(t.label == "你的问题" for t in app.text_input)
+    assert any(b.label == "↑" and b.key == "FormSubmitter:ask-↑" for b in app.button)
+    assert len(app.chat_input) == 0
+
+
+def test_secondary_sections_collapsed(app):
+    labels = [e.label for e in app.expander]
+    assert labels == [
+        "⚙️ 模型配置 · 点此展开填入 API Key",
+        "💡 常见问题实例（点击展开）",
+        "🔍 检索调试",
+    ]
+
+
+def test_chat_empty_state(app):
+    assert "对话" in "\n".join(m.value for m in app.markdown)
+    assert "对战终端已就绪" in "\n".join(m.value for m in app.markdown)

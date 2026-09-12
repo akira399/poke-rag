@@ -159,18 +159,19 @@ with st.expander("💡 常见问题实例（点击展开）", expanded=False):
             if st.button(q, key=f"ex_{group}_{i}", use_container_width=True):
                 st.session_state.pending = q
 
-# 提问表单：不用 st.chat_input（其聚焦逻辑会反复把页面拉到底部），
-# 普通表单无自动滚动，页面始终自然停在顶部。
-prompt = st.session_state.pop("pending", None)
-with st.form("ask", clear_on_submit=True, border=False):
-    q = st.text_input(
-        "你的问题",
-        label_visibility="collapsed",
-        placeholder="问点什么？例如：快龙怕什么？",
+st.markdown(
+    '<div class="chat-kicker"><span></span>对话</div>',
+    unsafe_allow_html=True,
+)
+if not st.session_state.messages:
+    st.markdown(
+        '<div class="chat-empty">'
+        '<div class="chat-empty-icon">✦</div>'
+        '<div><strong>对战终端已就绪</strong>'
+        '<p>输入宝可梦、招式或对战问题，回答会附带可查证引用。</p></div>'
+        '</div>',
+        unsafe_allow_html=True,
     )
-    ok = st.form_submit_button("🚀 发送", use_container_width=True, type="primary")
-if not prompt and ok and q.strip():
-    prompt = q.strip()
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -187,6 +188,26 @@ for msg in st.session_state.messages:
                             or card.get("content_en", "")[:400])
                 if url:
                     st.markdown(f"来源：{url}")
+
+# 提问 Composer：不用 st.chat_input（其聚焦逻辑会反复把页面拉到底部）。
+prompt = st.session_state.pop("pending", None)
+with st.form("ask", clear_on_submit=True, border=False):
+    input_col, send_col = st.columns([12, 1.25], gap="small", vertical_alignment="bottom")
+    with input_col:
+        q = st.text_input(
+            "你的问题",
+            label_visibility="collapsed",
+            placeholder="问点什么？例如：快龙怕什么？",
+        )
+    with send_col:
+        ok = st.form_submit_button(
+            "↑",
+            type="primary",
+            use_container_width=True,
+            help="发送问题（也可以按 Enter）",
+        )
+if not prompt and ok and q.strip():
+    prompt = q.strip()
 
 if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
