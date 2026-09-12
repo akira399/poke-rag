@@ -159,6 +159,19 @@ with st.expander("💡 常见问题实例（点击展开）", expanded=False):
             if st.button(q, key=f"ex_{group}_{i}", use_container_width=True):
                 st.session_state.pending = q
 
+# 提问表单：不用 st.chat_input（其聚焦逻辑会反复把页面拉到底部），
+# 普通表单无自动滚动，页面始终自然停在顶部。
+prompt = st.session_state.pop("pending", None)
+with st.form("ask", clear_on_submit=True, border=False):
+    q = st.text_input(
+        "你的问题",
+        label_visibility="collapsed",
+        placeholder="问点什么？例如：快龙怕什么？",
+    )
+    ok = st.form_submit_button("🚀 发送", use_container_width=True)
+if not prompt and ok and q.strip():
+    prompt = q.strip()
+
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         content = msg["content"]
@@ -175,10 +188,6 @@ for msg in st.session_state.messages:
                 if url:
                     st.markdown(f"来源：{url}")
 
-prompt = st.chat_input("问点什么？例如：快龙怕什么？")
-if st.session_state.pending:
-    prompt = st.session_state.pending
-    st.session_state.pending = None
 if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):

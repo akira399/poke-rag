@@ -1,39 +1,6 @@
 import base64
 import os
 
-# 修复：st.chat_input 聚焦会让 Streamlit 在加载时把内容滚到底部。
-# 不做"拉回纠正"（视觉跳动、观感差），而是在页面加载后前 3.5 秒内
-# 拦截程序触发的滚动（scrollIntoView + scrollTop 赋值），页面自然停在
-# 顶端；3.5 秒后恢复原生行为，用户浏览与提问后的滚动完全不受影响。
-_JS = """<script>(function(){
-  var w = window.parent;
-  if (w.__pokeScrollHooked) return;
-  w.__pokeScrollHooked = true;
-  var UNTIL = Date.now() + 3500;
-  var proto = w.Element.prototype;
-  var nativeSIV = proto.scrollIntoView;
-  proto.scrollIntoView = function(){
-    if (Date.now() < UNTIL) return;
-    return nativeSIV.apply(this, arguments);
-  };
-  var bind = function(){
-    var sc = w.document.querySelector('[data-testid="stAppScrollToBottomContainer"]');
-    if (!sc) { setTimeout(bind, 250); return; }
-    var d = Object.getOwnPropertyDescriptor(proto, "scrollTop");
-    Object.defineProperty(sc, "scrollTop", {
-      get: function(){ return d.get.call(sc); },
-      set: function(v){ if (Date.now() >= UNTIL) d.set.call(sc, v); },
-      configurable: true,
-    });
-  };
-  bind();
-  setTimeout(function(){
-    proto.scrollIntoView = nativeSIV;
-    var sc = w.document.querySelector('[data-testid="stAppScrollToBottomContainer"]');
-    if (sc) delete sc.scrollTop;  // 移除实例拦截，恢复原型原生属性
-  }, 3700);
-})();</script>"""
-
 # 界面样式：虚化背景 + 留白 + 卡片层级（用 CSS 注入，Streamlit 原生组件保持功能不变）
 _CSS = """
 <style>
@@ -169,7 +136,3 @@ def inject(base_dir: str | None = None, bg_name: str = "background.png") -> None
     if "var(--poke-bg)" in css:
         css = css.replace("var(--poke-bg)", "linear-gradient(#0c1428, #0c1428)")
     st.markdown(css, unsafe_allow_html=True)
-    # JS 需经组件 iframe 注入才能执行；height=0 不可见
-    from streamlit.components.v1 import html as components_html
-
-    components_html(_JS, height=0)
