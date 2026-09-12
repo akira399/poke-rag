@@ -72,8 +72,11 @@ def _client_id() -> str:
     return f"sess:{st.session_state.cid}"
 
 
-def render_answer(prompt: str) -> tuple[str, dict]:
+def render_answer(prompt: str) -> tuple[str, dict, list[str]]:
     """本地引擎直连：过程（路由/检索/思考）实时展示，答案流式输出。
+
+    返回 (答案, 引用卡, 提示语列表)。提示语单独返回而非拼进答案：
+    它们要作为次要信息渲染（st.caption），且不应混入回答正文。
 
     两种模式：默认用站点自带的免费 Key（受限流保护）；用户填了自己的 Key
     则走自己的额度，不受限流。
@@ -86,16 +89,14 @@ def render_answer(prompt: str) -> tuple[str, dict]:
         if not free_quota.free_mode_available():
             return ("⚠️ 免费模式暂未开放（站点未配置共享 Key）。请在页面顶部"
                     "「⚙️ 模型配置」中填入你自己的 API Key —— 多种免费方案"
-                    "可选，注册即用。"), {}
+                    "可选，注册即用。"), {}, []
         quota = free_quota.take(_client_id(), cfg)
         if not quota["allowed"]:
-            return f"⏳ {quota['message']}", {}
+            return f"⏳ {quota['message']}", {}, []
         llm_cfg = None    # 用全局配置（站点共享 Key）
-        tip = ""
     else:
         llm_cfg = {"api_key": skey["key"], "base_url": skey.get("url"),
                    "model": skey.get("model")}
-        tip = ""
 
     answer_parts: list[str] = []
     citations: dict[str, dict] = {}
@@ -139,13 +140,18 @@ def render_answer(prompt: str) -> tuple[str, dict]:
     if all_failed:
         answer = (f"⏳ **暂时无法回答**\n\n{all_failed}")
         answer_ph.markdown(answer)
-        return answer, {}
+        return answer, {}, []
     answer = "".join(answer_parts) or "知识库中未找到相关信息。"
+    # 提示走 st.caption 而非内联 HTML：Streamlit 默认转义 HTML，写 <sub> 会
+    # 原样显示成标签文本；caption 同时也是更合适的次要信息样式。
+    tips: list[str] = []
     if use_free:
-        tip = f"\n\n<sub>🌐 免费模式 · 今日剩余 {quota['day_left']} 次</sub>"
+        tips.append(f"🌐 免费模式 · 今日剩余 {quota['day_left']} 次")
     if fell_back:
-        tip += "\n<sub>🔄 主模型繁忙，本次回答由备用模型生成</sub>"
-    answer_ph.markdown(prompt_mod.linkify_citations(answer, citations) + tip)
+        tips.append("🔄 主模型繁忙，本次回答由备用模型生成")
+    answer_ph.markdown(prompt_mod.linkify_citations(answer, citations))
+    for t in tips:
+        st.caption(t)
     for n, card in citations.items():
         url = (card.get("source") or {}).get("url") or ""
         with st.expander(f"[{n}] {card.get('title_zh', '')}"
@@ -153,7 +159,7 @@ def render_answer(prompt: str) -> tuple[str, dict]:
             st.markdown(card.get("content_zh", "") or card.get("content_en", "")[:400])
             if url:
                 st.markdown(f"来源：{url}")
-    return answer + tip, citations
+    return answer, citations, tips
 
 
 st.markdown("## 🧭 宝可梦对战知识库问答")
@@ -254,6 +260,8 @@ for msg in st.session_state.messages:
             content = prompt_mod.linkify_citations(content,
                                                    msg.get("citations") or {})
         st.markdown(content)
+        for t in (msg.get("tips") or []):
+            st.caption(t)
         for n, card in (msg.get("citations") or {}).items():
             url = (card.get("source") or {}).get("url") or ""
             with st.expander(f"[{n}] {card.get('title_zh', '')}"
@@ -287,9 +295,10 @@ if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
-    answer, citations = render_answer(prompt)
+    answer, citations, tips = render_answer(prompt)
     st.session_state.messages.append(
-        {"role": "assistant", "content": answer, "citations": citations}
+        {"role": "assistant", "content": answer, "citations": citations,
+         "tips": tips}
     )
     st.rerun()
 

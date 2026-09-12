@@ -76,3 +76,15 @@ def test_chat_empty_state(app):
     md = "\n".join(m.value for m in app.markdown)
     assert "对话" in md
     assert "对战终端已就绪" in md
+
+
+def test_no_raw_html_tags_in_rendered_output(app):
+    """提示语不得以内联 HTML 输出（Streamlit 会转义成原始标签文本）。
+
+    历史 bug：<sub>🌐 免费模式…</sub> 被原样显示成标签文字。
+    """
+    for m in app.markdown:
+        assert "<sub>" not in m.value, f"markdown 出现原始 HTML: {m.value[:80]}"
+        assert "</sub>" not in m.value
+    for c in app.caption:
+        assert "<sub>" not in c.value
