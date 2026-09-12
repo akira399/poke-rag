@@ -25,7 +25,7 @@ def _load_cards(quality_filter: bool = True) -> list[dict]:
     检索时会因命中泛词而霸榜，污染召回（实测教训）。
     """
     cards: list[dict] = []
-    for name in ["pokemon", "form", "move", "ability", "item", "meta", "typechart"]:
+    for name in ["pokemon", "form", "move", "ability", "item", "meta", "typechart", "champion"]:
         with open(os.path.join(CARDS_DIR, f"{name}.jsonl"), encoding="utf-8") as f:
             for line in f:
                 card = json.loads(line)

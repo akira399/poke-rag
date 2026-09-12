@@ -29,7 +29,7 @@ def load_cards() -> dict[str, dict]:
     被静默丢弃，模型拿到空上下文只能拒答（llm-eval 评测发现的实证）。
     """
     cards: dict[str, dict] = {}
-    for name in ("pokemon", "move", "ability", "item", "meta", "typechart"):
+    for name in ("pokemon", "move", "ability", "item", "meta", "typechart", "champion"):
         path = os.path.join(CARDS_DIR, f"{name}.jsonl")
         if not os.path.exists(path):
             continue

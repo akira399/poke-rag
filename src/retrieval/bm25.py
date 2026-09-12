@@ -29,7 +29,7 @@ def _ensure_card_dict() -> None:
     global _dict_loaded
     if _dict_loaded:
         return
-    for fname in ("pokemon.jsonl", "move.jsonl", "ability.jsonl", "item.jsonl"):
+    for fname in ("pokemon.jsonl", "move.jsonl", "ability.jsonl", "item.jsonl", "champion.jsonl"):
         path = os.path.join(CARDS_DIR, fname)
         if not os.path.exists(path):
             continue
@@ -39,6 +39,12 @@ def _ensure_card_dict() -> None:
                 title = card.get("title_zh", "")
                 if title and len(title) >= 2:
                     jieba.add_word(title)
+                # 冠军卡标题是复合短语（"神奥冠军 竹兰（Cynthia）"），整串注册无法
+                # 命中分词；人名（竹兰/卡露乃）单注册才有用
+                if fname == "champion.jsonl":
+                    for alias in card.get("aliases", []):
+                        if len(alias) >= 2:
+                            jieba.add_word(alias)
     _dict_loaded = True
 
 
