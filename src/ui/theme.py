@@ -156,7 +156,7 @@ section[data-testid="stSidebar"] {
 }
 
 /* 发送区域：只保留轻量操作感，不与消息内容争夺焦点 */
-form[data-testid="stForm"] {
+[data-testid="stForm"] {
     margin: 1rem 0 1.35rem;
     padding: 8px 10px 8px 14px;
     border: 1px solid rgba(134, 183, 255, .22);
@@ -164,17 +164,21 @@ form[data-testid="stForm"] {
     background: rgba(8, 18, 39, .64);
     box-shadow: 0 12px 30px rgba(3, 8, 22, .24);
 }
-form[data-testid="stForm"] [data-baseweb="input"] {
+[data-testid="stForm"] [data-baseweb="input"] {
     border: 0 !important;
     box-shadow: none !important;
     background: transparent !important;
 }
-form[data-testid="stForm"] [data-baseweb="input"] input {
+[data-testid="stForm"] [data-baseweb="input"] input {
     min-height: 32px;
     background: transparent !important;
 }
-    form[data-testid="stForm"] [data-testid="stFormSubmitButton"] button,
-    form [data-testid="stBaseButton-primaryFormSubmit"] {
+[data-testid="stForm"] [data-testid="stFormSubmitButton"] {
+    display: flex !important;
+    justify-content: flex-end !important;
+}
+[data-testid="stForm"] [data-testid="stFormSubmitButton"] button,
+[data-testid="stForm"] [data-testid="stBaseButton-primaryFormSubmit"] {
     width: 38px !important;
     min-width: 38px !important;
     max-width: 38px !important;
@@ -188,13 +192,13 @@ form[data-testid="stForm"] [data-baseweb="input"] input {
     font-size: 18px !important;
     line-height: 1 !important;
 }
-    form[data-testid="stForm"] [data-testid="stFormSubmitButton"] button:hover,
-    form [data-testid="stBaseButton-primaryFormSubmit"]:hover {
+[data-testid="stForm"] [data-testid="stFormSubmitButton"] button:hover,
+[data-testid="stForm"] [data-testid="stBaseButton-primaryFormSubmit"]:hover {
     background: rgba(96, 158, 248, .95) !important;
     transform: translateY(-1px);
 }
-    form[data-testid="stForm"] [data-testid="stFormSubmitButton"] p,
-    form [data-testid="stBaseButton-primaryFormSubmit"] p {
+[data-testid="stForm"] [data-testid="stFormSubmitButton"] p,
+[data-testid="stForm"] [data-testid="stBaseButton-primaryFormSubmit"] p {
     display: block !important;
     margin: 0 !important;
     line-height: 1 !important;
