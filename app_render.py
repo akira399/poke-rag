@@ -142,6 +142,7 @@ def render_answer(prompt: str) -> tuple[str, dict, list[str]]:
         answer_ph.markdown(answer)
         return answer, {}, []
     answer = "".join(answer_parts) or "知识库中未找到相关信息。"
+    answer = prompt_mod.normalize_sections(answer)   # 排版兜底：情形/结论强制分段
     # 提示走 st.caption 而非内联 HTML：Streamlit 默认转义 HTML，写 <sub> 会
     # 原样显示成标签文本；caption 同时也是更合适的次要信息样式。
     tips: list[str] = []

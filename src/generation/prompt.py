@@ -72,6 +72,26 @@ def parse_citations(answer: str) -> list[str]:
     return re.findall(r"\[(\d+)\]", answer)
 
 
+def normalize_sections(answer: str) -> str:
+    """保证「情形 N」「★ 总体结论」各自成段（确定性排版兜底）。
+
+    LLM 对伤害计算极端情形的输出不稳定：有时用列表（正常分段），有时照抄
+    上下文的单换行——单换行在 Markdown 里渲染为同一段落，三个情形会挤成一
+    大坨。此处在渲染前强制分段，不依赖模型自觉。
+
+    只处理伤害计算特有的标记（情形 N｜ / ★ 总体结论），误伤面极小。
+    """
+    import re
+
+    # 先补"句中紧贴"的情况（句号/分号/引用标记后直接跟 情形 N，无换行）
+    answer = re.sub(r"(?<=[。；;！？\]])\s+(?=情形\s*\d[｜|])", "\n\n", answer)
+    answer = re.sub(r"(?<=[。；;！？\]])\s+(?=★\s*总体结论)", "\n\n", answer)
+    # 再把已有换行（单/多）统一规范化为恰好一个空行（幂等）
+    answer = re.sub(r"\n+(?=情形\s*\d[｜|])", "\n\n", answer)
+    answer = re.sub(r"\n+(?=★\s*总体结论)", "\n\n", answer)
+    return answer
+
+
 def linkify_citations(answer: str, cards_by_no: dict[str, dict]) -> str:
     """把答案里的 [n] 变成可点击链接（指向来源 URL），供用户点击查证。
 

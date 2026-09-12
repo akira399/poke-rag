@@ -188,6 +188,7 @@ def render_answer(prompt: str) -> tuple[str, dict]:
             expanded=False,
         )
         answer = "".join(answer_parts) or "知识库中未找到相关信息。"
+        answer = prompt_mod.normalize_sections(answer)
         answer_ph.markdown(prompt_mod.linkify_citations(answer, citations))
         for n, card in citations.items():
             url = (card.get("source") or {}).get("url") or ""

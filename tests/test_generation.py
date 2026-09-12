@@ -47,3 +47,33 @@ class TestLinkifyCitations:
 
     def test_unknown_number_kept(self):
         assert linkify_citations("答案[9]", {}) == "答案[9]"
+
+
+def test_normalize_sections_splits_scenarios():
+    """伤害计算极端情形必须各自成段（LLM 单换行输出会被 Markdown 合并成一大段）。"""
+    from src.generation.prompt import normalize_sections
+
+    # 模拟模型照抄上下文的单换行输出
+    bad = "判定：一定打不死 [1]\n情形 2｜中间情形\n条件：252 努力值\n判定：一定打不死 [1]\n情形 3｜最有利\n判定：一定打得死\n★ 总体结论：看配置。"
+    out = normalize_sections(bad)
+    parts = out.split("\n\n")
+    assert any(p.startswith("情形 2") for p in parts), out
+    assert any(p.startswith("情形 3") for p in parts), out
+    assert any(p.startswith("★ 总体结论") for p in parts), out
+
+    # 模型连换行都没有（句号后直接跟"情形 2"）也要分段
+    worse = "判定：一定打不死 [1] 情形 2｜中间情形 条件：x"
+    out2 = normalize_sections(worse)
+    assert "\n\n情形 2" in out2, out2
+
+    # 正常列表输出不应被破坏
+    good = "- **情形 1｜最不利**：x\n\n- **情形 2｜中间**：y"
+    assert normalize_sections(good) == good
+
+
+def test_normalize_sections_no_false_positive():
+    """「情形」出现在普通句子里（非编号标记）不应被切断。"""
+    from src.generation.prompt import normalize_sections
+
+    s = "这个情形描述的是特殊情况。"
+    assert normalize_sections(s) == s
