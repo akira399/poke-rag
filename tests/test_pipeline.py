@@ -9,7 +9,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from src.pipeline.aliases import build_aliases, resolve
-from src.pipeline.build_cards import render_move_card, render_pokemon_card
+from src.pipeline.build_cards import render_item_card, render_move_card, render_pokemon_card
 from src.pipeline.normalize import (
     normalize_ability,
     normalize_item,
@@ -66,6 +66,15 @@ class TestCards:
         assert card["type"] == "move"
         assert "威力 90" in card["content_zh"]
         assert card["aliases"] == ["十万伏特", "thunderbolt"]
+
+    def test_mega_stone_localized(self):
+        """传说 Z-A 的 Mega 石 PokeAPI 无中文（dragoninite）——补丁表命名 +
+        渲染层补中文效果句，否则检索命中整段英文、UI 还会露出裸英文标题
+        （线上事故 2026-09-12：快龙怕什么属性 命中 dragoninite）。"""
+        card = render_item_card(normalize_item(2236))
+        assert card["title_zh"] == "快龙进化石"
+        assert "由 快龙 携带后可超级进化为超级 快龙。" in card["content_zh"]
+        assert "快龙进化石" in card["aliases"]
 
 
 class TestMovesText:

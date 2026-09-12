@@ -192,18 +192,23 @@ def render_ability_card(ability: Ability) -> dict:
 
 def render_item_card(item: Item) -> dict:
     effect = item.effect_en or _text_desc("items", item.name_en) or "（暂无效果描述）"
-    content = (
-        f"道具「{item.name_zh}」（{item.name_en}）：{effect[:200]}"
-    )
     from .i18n_patch import patch_title
 
     title_zh = item.name_zh if _has_cjk(item.name_zh) else patch_title("item", item.name_en)
+    content = f"道具「{title_zh or item.name_zh}」（{item.name_en}）：{effect[:200]}"
+    # Mega 石在 PokeAPI 尚无中文效果的（传说 Z-A 系列），按石名补一句中文效果，
+    # 否则检索命中的是整段英文、模型也只能照抄英文
+    if (title_zh or "").endswith("进化石") and "Mega" in effect:
+        holder = title_zh[:-3]
+        content += f"由 {holder} 携带后可超级进化为超级 {holder}。"
     return {
         "card_id": f"item:{item.id}",
         "type": "item",
         "title_zh": title_zh or item.name_zh,
         "title_en": item.name_en,
-        "aliases": [item.name_zh, item.name_en],
+        "aliases": list(dict.fromkeys(
+            [title_zh, item.name_zh, item.name_en] if title_zh != item.name_zh
+            else [item.name_zh, item.name_en])),
         "content_zh": content,
         "content_en": f"{item.name_en}: {effect[:200]}",
         "tags": ["道具"],

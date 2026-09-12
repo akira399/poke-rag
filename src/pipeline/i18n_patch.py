@@ -42,7 +42,30 @@ MOVE_PATCH = {
 }
 
 ITEM_PATCH = {
-    "raichunite": "雷丘石", "grass-mail": "草地邮件", "flame-mail": "火焰邮件",
+    "raichunite": "雷丘进化石",
+    # 传说 Z-A 新增 Mega 石（PokeAPI 尚无中文；命名规则：<宝可梦中文名>进化石，
+    # 中文名取自本项目 pokemon.jsonl 的官方 zh 名，逐一前缀匹配核对）
+    "clefablite": "皮可西进化石", "victreebelite": "大食花进化石",
+    "starminite": "宝石海星进化石", "dragoninite": "快龙进化石",
+    "meganiumite": "大竺葵进化石", "feraligite": "大力鳄进化石",
+    "skarmorite": "盔甲鸟进化石", "froslassite": "雪妖女进化石",
+    "heatranite": "席多蓝恩进化石", "darkranite": "达克莱伊进化石",
+    "emboarite": "炎武王进化石", "excadrite": "龙头地鼠进化石",
+    "scolipite": "蜈蚣王进化石", "scraftinite": "头巾混混进化石",
+    "eelektrossite": "麻麻鳗鱼王进化石", "chandelurite": "水晶灯火灵进化石",
+    "chesnaughtite": "布里卡隆进化石", "delphoxite": "妖火红狐进化石",
+    "greninjite": "甲贺忍蛙进化石", "pyroarite": "火炎狮进化石",
+    "floettite": "花叶蒂进化石", "malamarite": "乌贼王进化石",
+    "barbaracite": "龟足巨铠进化石", "dragalgite": "毒藻龙进化石",
+    "hawluchanite": "摔角鹰人进化石", "zygardite": "基格尔德进化石",
+    "drampanite": "老翁龙进化石", "zeraorite": "捷拉奥拉进化石",
+    "falinksite": "列阵兵进化石", "chimechite": "风铃铃进化石",
+    "staraptite": "姆克鹰进化石", "golurkite": "泥偶巨人进化石",
+    "meowsticite": "超能妙喵进化石", "crabominite": "好胜毛蟹进化石",
+    "golisopite": "具甲武者进化石", "magearnite": "玛机雅娜进化石",
+    "scovillainite": "狠辣椒进化石", "baxcalibrite": "戟脊龙进化石",
+    "tatsugirinite": "米立龙进化石", "glimmoranite": "晶光花进化石",
+    "grass-mail": "草地邮件", "flame-mail": "火焰邮件",
     "bubble-mail": "气泡邮件", "bloom-mail": "鲜花邮件", "tunnel-mail": "隧道邮件",
     "steel-mail": "钢铁邮件", "heart-mail": "爱心邮件", "snow-mail": "雪花邮件",
 }

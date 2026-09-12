@@ -118,7 +118,7 @@ def render_answer(prompt: str) -> tuple[str, dict, list[str]]:
         elif etype == "citations":
             for n, card in zip(event["mapping"].keys(), event["cards"]):
                 citations[n] = card
-            titles = "、".join(f"[{n}] {c.get('title_zh', '')}"
+            titles = "、".join(f"[{n}] {(c or {}).get('title_zh', '')}"
                                for n, c in citations.items())
             status.write(f"📚 知识片段：{titles}")
         elif etype == "fallback":
@@ -156,6 +156,7 @@ def render_answer(prompt: str) -> tuple[str, dict, list[str]]:
     for t in tips:
         st.caption(t)
     for n, card in citations.items():
+        card = card or {}
         url = (card.get("source") or {}).get("url") or ""
         with st.expander(f"[{n}] {card.get('title_zh', '')}"
                          + ("　（来源 ↗）" if url else "")):

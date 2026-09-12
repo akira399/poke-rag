@@ -77,3 +77,24 @@ def test_normalize_sections_no_false_positive():
 
     s = "这个情形描述的是特殊情况。"
     assert normalize_sections(s) == s
+
+
+def test_retrieval_whitelist_covered_by_assembly():
+    """检索白名单必须被上下文组装白名单完全覆盖——form 卡漏接导致
+    线上 None.get() 崩溃（「快龙怕什么属性」命中 form:dragonitemega，
+    2026-09-12）。本测试把两份白名单永久锁成一致。"""
+    from src.retrieval.index import _load_cards
+    from src.generation.prompt import load_cards
+
+    assembly = load_cards()
+    missing = [c["card_id"] for c in _load_cards() if c["card_id"] not in assembly]
+    assert not missing, f"组装层白名单缺少（会被静默丢弃并产生 None 引用）: {missing[:5]}"
+
+
+def test_form_card_reachable_in_context():
+    """Mega 形态卡命中后必须真实进入知识片段（当年被组装层静默丢弃）。"""
+    from src.generation.prompt import build_context
+
+    context, mapping = build_context(["form:dragonitemega"])
+    assert context, "form:dragonitemega 组装为空"
+    assert list(mapping.values()) == ["form:dragonitemega"]

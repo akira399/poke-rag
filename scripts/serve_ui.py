@@ -169,7 +169,8 @@ def render_answer(prompt: str) -> tuple[str, dict]:
                 for n, card in zip(event["mapping"].keys(), event["cards"]):
                     citations[n] = card
                 titles = "、".join(
-                    f"[{n}] {c.get('title_zh', '')}" for n, c in citations.items()
+                    f"[{n}] {(c or {}).get('title_zh', '')}"
+                    for n, c in citations.items()
                 )
                 status.write(f"📚 知识片段：{titles}")
             elif etype == "reasoning":

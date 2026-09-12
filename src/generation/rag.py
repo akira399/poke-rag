@@ -90,7 +90,9 @@ class RAGEngine:
         # 2) 上下文组装
         context, citation_map = prompt_mod.build_context(fused)
         yield {"type": "citations", "mapping": citation_map,
-               "cards": [all_cards.get(cid) for cid in fused]}
+               # 按映射对齐：检索命中但组装层缺失的卡不在映射里，
+               # 混入会错位并让上层拿到 None（线上事故 2026-09-12）
+               "cards": [all_cards.get(cid) for cid in citation_map.values()]}
         # 3) 流式生成
         answer_text = ""
         for event in self._generate(prompt_mod.build_messages(query, context)):
