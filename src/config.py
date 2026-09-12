@@ -26,6 +26,76 @@ _DEFAULTS = {
         # top-3 3%（96% vs BM25-only 99%），默认关闭双路、保留架构
         "use_dense": False,
     },
+    # 向量后端：local=本地 sentence-transformers；remote=OpenAI 兼容的
+    # /embeddings 接口（可用免费的 bge-m3，低配机器无需装 torch）。
+    "embed": {
+        "backend": "local",
+        "base_url": "",
+        "model": "",
+        "api_key": "",
+        "dim": 0,
+    },
+}
+
+# 服务商预设：界面「快速配置」一键填充 base_url 与模型名，用户只需填自己的
+# Key（本文件不含任何密钥）。全部为 OpenAI 兼容接口，可直接接入。
+LLM_PRESETS: dict[str, dict] = {
+    "智谱 GLM-4.7-Flash（免费）": {
+        "base_url": "https://open.bigmodel.cn/api/paas/v4",
+        "model": "glm-4.7-flash",
+        "note": "完全免费文本模型 · 200K 上下文 · 无需信用卡",
+        "signup": "https://bigmodel.cn/usercenter/proj-mgmt/apikeys",
+    },
+    "阿里云百炼（每模型 100 万 tokens）": {
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "model": "qwen-plus",
+        "note": "新用户每个模型 100 万 tokens · 有效期 90 天 · 免实名",
+        "signup": "https://bailian.console.aliyun.com/",
+    },
+    "腾讯混元（100 万 tokens / 1 年）": {
+        "base_url": "https://api.hunyuan.cloud.tencent.com/v1",
+        "model": "hunyuan-turbos-latest",
+        "note": "新用户 100 万 tokens 共享额度 · 有效期 1 年",
+        "signup": "https://console.cloud.tencent.com/hunyuan/api-key",
+    },
+    "硅基流动 SiliconFlow": {
+        "base_url": "https://api.siliconflow.cn/v1",
+        "model": "Qwen/Qwen3-8B",
+        "note": "免费额度 + 免费向量模型（见下方向量检索预设）",
+        "signup": "https://cloud.siliconflow.cn/account/ak",
+    },
+    "DeepSeek（便宜稳定，非免费）": {
+        "base_url": "https://api.deepseek.com",
+        "model": "deepseek-flash",
+        "note": "价格极低、中文效果好；新用户偶有赠额",
+        "signup": "https://platform.deepseek.com/",
+    },
+}
+
+# 远程向量检索预设：借用免费 embedding API 恢复混合检索，
+# 低配服务器无需装 torch（本地小模型消融为负收益，见 docs/08）。
+EMBED_PRESETS: dict[str, dict] = {
+    "关闭（仅关键词 BM25）": {
+        "backend": "local",
+        "base_url": "",
+        "model": "",
+        "dim": 0,
+        "note": "默认。零依赖、零成本，检索 top-3 仍有 99%",
+    },
+    "硅基流动 · BAAI/bge-m3（免费）": {
+        "backend": "remote",
+        "base_url": "https://api.siliconflow.cn/v1",
+        "model": "BAAI/bge-m3",
+        "dim": 1024,
+        "note": "本项目原设计向量模型 · 免费 · 与 BM25 混合可提召回",
+    },
+    "腾讯混元 · Hunyuan-embedding": {
+        "backend": "remote",
+        "base_url": "https://api.hunyuan.cloud.tencent.com/v1",
+        "model": "hunyuan-embedding",
+        "dim": 1024,
+        "note": "免费额度 100 万 tokens · 与混元大模型同一 Key",
+    },
 }
 
 
@@ -36,14 +106,18 @@ def load(overrides: dict | None = None) -> dict:
     if os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH, encoding="utf-8") as f:
             user_cfg = json.load(f)
-        for section in ("llm", "rag"):
+        for section in ("llm", "rag", "embed"):
             cfg[section].update(user_cfg.get(section, {}))
     # 环境变量覆盖（密钥走环境变量是更规范的生产姿势）
     cfg["llm"]["base_url"] = os.environ.get("LLM_BASE_URL", cfg["llm"]["base_url"])
     cfg["llm"]["api_key"] = os.environ.get("LLM_API_KEY", cfg["llm"]["api_key"])
     cfg["llm"]["model"] = os.environ.get("LLM_MODEL", cfg["llm"]["model"])
+    cfg["embed"]["backend"] = os.environ.get("EMBED_BACKEND", cfg["embed"]["backend"])
+    cfg["embed"]["base_url"] = os.environ.get("EMBED_BASE_URL", cfg["embed"]["base_url"])
+    cfg["embed"]["model"] = os.environ.get("EMBED_MODEL_NAME", cfg["embed"]["model"])
+    cfg["embed"]["api_key"] = os.environ.get("EMBED_API_KEY", cfg["embed"]["api_key"])
     if overrides:
-        for section in ("llm", "rag"):
+        for section in ("llm", "rag", "embed"):
             cfg[section].update(
                 {k: v for k, v in (overrides.get(section) or {}).items() if v}
             )

@@ -19,7 +19,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from src.config import load  # noqa: E402
+from src.config import LLM_PRESETS, load  # noqa: E402
 from src.generation import prompt as prompt_mod  # noqa: E402
 from src.generation.rag import RAGEngine  # noqa: E402
 from src.retrieval.index import search  # noqa: E402
@@ -140,6 +140,21 @@ with st.expander(
         "- 本项目完全开源，数据流向可在 "
         "`src/config.py` 与 `src/generation/llm.py` 中自行审计。"
     )
+    st.markdown("**🎁 没有 API Key？下面是免费额度方案（选一个注册即可）**")
+    preset_name = st.selectbox(
+        "快速配置",
+        list(LLM_PRESETS.keys()),
+        index=None,
+        placeholder="选择一个服务商，自动填好接口地址与模型名（Key 仍需你自己填）",
+        label_visibility="collapsed",
+    )
+    if preset_name:
+        p = LLM_PRESETS[preset_name]
+        st.caption(f"{p['note']} · [在此注册/获取 Key]({p['signup']})")
+        if st.button(f"使用「{preset_name}」", use_container_width=True):
+            st.session_state.url = p["base_url"]
+            st.session_state.model = p["model"]
+            st.rerun()
     k = st.text_input("API Key", value=st.session_state.key, type="password")
     u = st.text_input("接口地址", value=st.session_state.url)
     m = st.text_input("模型名", value=st.session_state.model)

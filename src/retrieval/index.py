@@ -76,6 +76,7 @@ def build_index() -> None:
 
 _BM25_CACHE: "Bm25Index | None" = None
 _BM25_KEY: tuple | None = None
+_DENSE_CACHE: tuple | None = None   # (key, ids, 归一化向量矩阵)
 
 
 def _get_bm25(docs: list[str], aliases: list[list[str]]) -> Bm25Index:
@@ -88,8 +89,33 @@ def _get_bm25(docs: list[str], aliases: list[list[str]]) -> Bm25Index:
     return _BM25_CACHE
 
 
+def _dense_rank(ids: list[str], docs: list[str], query: str, top_k: int) -> list[str]:
+    """远程向量召回的余弦排序（内存计算，无需 chromadb / torch）。
+
+    卡片向量按内容指纹缓存，首次调用建立（约 4.5k 条，几十秒内）。
+    """
+    global _DENSE_CACHE
+    import numpy as np
+
+    from src.retrieval.embed import embed_query, embed_texts
+
+    key = (len(docs), sum(len(d) for d in docs))
+    if _DENSE_CACHE is None or _DENSE_CACHE[0] != key:
+        mat = np.asarray(embed_texts(docs), dtype="float32")
+        norms = np.linalg.norm(mat, axis=1, keepdims=True)
+        mat = mat / np.clip(norms, 1e-8, None)
+        _DENSE_CACHE = (key, ids, mat)
+
+    _, cached_ids, mat = _DENSE_CACHE
+    q = np.asarray(embed_query(query), dtype="float32")
+    q = q / max(float(np.linalg.norm(q)), 1e-8)
+    scores = mat @ q
+    order = np.argsort(-scores)[:top_k]
+    return [cached_ids[i] for i in order]
+
+
 def search(query: str, top_k: int = 20) -> list[tuple[str, float]]:
-    """双路召回 + RRF 融合；本地 embedding 不可用时降级为 BM25-only。
+    """双路召回 + RRF 融合；向量不可用时降级为 BM25-only。
 
     返回 [(card_id, 融合分)]。降级模式分数为 BM25 原始分（>-1 视为命中）。
     """
@@ -107,8 +133,17 @@ def search(query: str, top_k: int = 20) -> list[tuple[str, float]]:
 
     if not _use_dense() or not embed.embedding_available():  # 按配置/优雅降级
         return bm25_hits
-    res = _collection().query(query_embeddings=[embed.embed_query(query_enriched)], n_results=top_k)
-    dense_rank: list[str] = list(res["ids"][0])
+    try:
+        if embed.is_remote():
+            dense_rank = _dense_rank(ids, docs, query_enriched, top_k)
+        else:
+            res = _collection().query(
+                query_embeddings=[embed.embed_query(query_enriched)],
+                n_results=top_k,
+            )
+            dense_rank = list(res["ids"][0])
+    except Exception:
+        return bm25_hits   # 远程接口异常时不影响主流程（BM25 兜底）
     return rrf_fuse(dense_rank, bm25_rank, top_k=top_k)
 
 

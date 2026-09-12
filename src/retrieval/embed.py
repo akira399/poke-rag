@@ -79,10 +79,14 @@ def get_model() -> SentenceTransformer:
 
 
 def embedding_available() -> bool:
-    """本地 embedding 是否可用（不可用时检索层降级为 BM25-only）。
+    """向量检索是否可用（不可用时检索层降级为 BM25-only）。
 
-    EMBED_DISABLED=1 显式禁用（低内存/页面文件受限机器）。
+    - 远程后端（OpenAI 兼容 /embeddings，如免费的 bge-m3）：配置齐全即视为
+      可用，不额外探测（省额度），实际调用失败时由检索层降级；
+    - 本地后端：EMBED_DISABLED=1 或模型加载失败则不可用。
     """
+    if is_remote():
+        return True
     global _LOAD_ERROR
     if os.environ.get("EMBED_DISABLED") == "1":
         return False
@@ -93,6 +97,39 @@ def embedding_available() -> bool:
         return False
 
 
+def _embed_cfg() -> dict:
+    from src.config import load
+
+    return load().get("embed", {})
+
+
+def is_remote() -> bool:
+    """是否走远程 embedding API（backend=remote 且地址、模型齐全）。"""
+    cfg = _embed_cfg()
+    return (cfg.get("backend") == "remote"
+            and bool(cfg.get("base_url")) and bool(cfg.get("model")))
+
+
+def _remote_dim() -> int:
+    return int(_embed_cfg().get("dim") or 0)
+
+
+def _remote_embed(texts: list[str]) -> list[list[float]]:
+    """调用 OpenAI 兼容的 /embeddings 接口（远程模型不做 e5 前缀处理）。"""
+    import requests
+
+    cfg = _embed_cfg()
+    resp = requests.post(
+        cfg["base_url"].rstrip("/") + "/embeddings",
+        headers={"Authorization": f"Bearer {cfg.get('api_key', '')}"},
+        json={"model": cfg["model"], "input": texts},
+        timeout=90,
+    )
+    resp.raise_for_status()
+    data = resp.json().get("data", [])
+    return [item["embedding"] for item in sorted(data, key=lambda d: d.get("index", 0))]
+
+
 def _prefix(text: str, role: str) -> str:
     if not _IS_E5:
         return text
@@ -100,11 +137,18 @@ def _prefix(text: str, role: str) -> str:
 
 
 def embed_texts(texts: list[str], batch_size: int = 32) -> list[list[float]]:
+    if is_remote():
+        out: list[list[float]] = []
+        for i in range(0, len(texts), 32):      # 分批，避免单请求过大
+            out.extend(_remote_embed(texts[i:i + 32]))
+        return out
     docs = [_prefix(t, "passage") for t in texts]
     return get_model().encode(docs, batch_size=batch_size, show_progress_bar=False).tolist()
 
 
 def embed_query(text: str) -> list[float]:
+    if is_remote():
+        return _remote_embed([text])[0]
     return get_model().encode(
         [_prefix(text, "query")], show_progress_bar=False
     ).tolist()[0]
