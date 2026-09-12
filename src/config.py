@@ -35,6 +35,14 @@ _DEFAULTS = {
         "api_key": "",
         "dim": 0,
     },
+    # 免费模式：站点侧持有一个共享 Key，访客无需配置即可使用。
+    # 公开地址下该 Key 会被所有访客消耗，因此按客户端限流（见 free_quota.py）。
+    "free": {
+        "enabled": True,
+        "per_hour": 10,        # 单客户端每小时上限
+        "per_day": 30,         # 单客户端每天上限
+        "global_per_day": 500, # 全站每天总量兜底
+    },
 }
 
 # 服务商预设：界面「快速配置」一键填充 base_url 与模型名，用户只需填自己的
@@ -106,7 +114,7 @@ def load(overrides: dict | None = None) -> dict:
     if os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH, encoding="utf-8") as f:
             user_cfg = json.load(f)
-        for section in ("llm", "rag", "embed"):
+        for section in ("llm", "rag", "embed", "free"):
             cfg[section].update(user_cfg.get(section, {}))
     # 环境变量覆盖（密钥走环境变量是更规范的生产姿势）
     cfg["llm"]["base_url"] = os.environ.get("LLM_BASE_URL", cfg["llm"]["base_url"])
@@ -116,8 +124,17 @@ def load(overrides: dict | None = None) -> dict:
     cfg["embed"]["base_url"] = os.environ.get("EMBED_BASE_URL", cfg["embed"]["base_url"])
     cfg["embed"]["model"] = os.environ.get("EMBED_MODEL_NAME", cfg["embed"]["model"])
     cfg["embed"]["api_key"] = os.environ.get("EMBED_API_KEY", cfg["embed"]["api_key"])
+    for env_key, field, cast in (
+        ("FREE_PER_HOUR", "per_hour", int),
+        ("FREE_PER_DAY", "per_day", int),
+        ("FREE_GLOBAL_PER_DAY", "global_per_day", int),
+    ):
+        if os.environ.get(env_key):
+            cfg["free"][field] = cast(os.environ[env_key])
+    if os.environ.get("FREE_ENABLED"):
+        cfg["free"]["enabled"] = os.environ["FREE_ENABLED"] not in ("0", "false", "False")
     if overrides:
-        for section in ("llm", "rag", "embed"):
+        for section in ("llm", "rag", "embed", "free"):
             cfg[section].update(
                 {k: v for k, v in (overrides.get(section) or {}).items() if v}
             )

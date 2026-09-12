@@ -20,6 +20,7 @@ import streamlit as st
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.config import LLM_PRESETS, load  # noqa: E402
+from src import free_quota  # noqa: E402
 from src.generation import prompt as prompt_mod  # noqa: E402
 from src.generation.rag import RAGEngine  # noqa: E402
 from src.retrieval.index import search  # noqa: E402
@@ -56,15 +57,45 @@ def _engine(llm_cfg: dict | None) -> RAGEngine:
     return RAGEngine(llm_cfg=llm_cfg)
 
 
+def _client_id() -> str:
+    """限流标识：优先客户端 IP（st.context.ip_address），取不到则退化为会话 ID。"""
+    try:
+        ip = st.context.ip_address
+        if ip:
+            return f"ip:{ip}"
+    except Exception:
+        pass
+    if "cid" not in st.session_state:
+        import uuid
+
+        st.session_state.cid = uuid.uuid4().hex
+    return f"sess:{st.session_state.cid}"
+
+
 def render_answer(prompt: str) -> tuple[str, dict]:
-    """本地引擎直连：过程（路由/检索/思考）实时展示，答案流式输出。"""
+    """本地引擎直连：过程（路由/检索/思考）实时展示，答案流式输出。
+
+    两种模式：默认用站点自带的免费 Key（受限流保护）；用户填了自己的 Key
+    则走自己的额度，不受限流。
+    """
     skey = st.session_state
-    if not skey.get("key"):
-        return ("⚠️ 尚未配置模型 API Key。请展开页面顶部「⚙️ 模型配置」填入你的"
-                " DeepSeek Key（[免费注册](https://platform.deepseek.com/)），"
-                "仅保存在当前会话。"), {}
-    llm_cfg = {"api_key": skey["key"], "base_url": skey.get("url"),
-               "model": skey.get("model")}
+    cfg = load()
+    use_free = not skey.get("key")
+
+    if use_free:
+        if not free_quota.free_mode_available():
+            return ("⚠️ 免费模式暂未开放（站点未配置共享 Key）。请在页面顶部"
+                    "「⚙️ 模型配置」中填入你自己的 API Key —— 多种免费方案"
+                    "可选，注册即用。"), {}
+        quota = free_quota.take(_client_id(), cfg)
+        if not quota["allowed"]:
+            return f"⏳ {quota['message']}", {}
+        llm_cfg = None    # 用全局配置（站点共享 Key）
+        tip = ""
+    else:
+        llm_cfg = {"api_key": skey["key"], "base_url": skey.get("url"),
+                   "model": skey.get("model")}
+        tip = ""
 
     answer_parts: list[str] = []
     citations: dict[str, dict] = {}
@@ -100,7 +131,9 @@ def render_answer(prompt: str) -> tuple[str, dict]:
                   state="complete" if not rejected else "error",
                   expanded=False)
     answer = "".join(answer_parts) or "知识库中未找到相关信息。"
-    answer_ph.markdown(prompt_mod.linkify_citations(answer, citations))
+    if use_free:
+        tip = f"\n\n<sub>🌐 免费模式 · 今日剩余 {quota['day_left']} 次</sub>"
+    answer_ph.markdown(prompt_mod.linkify_citations(answer, citations) + tip)
     for n, card in citations.items():
         url = (card.get("source") or {}).get("url") or ""
         with st.expander(f"[{n}] {card.get('title_zh', '')}"
@@ -108,7 +141,7 @@ def render_answer(prompt: str) -> tuple[str, dict]:
             st.markdown(card.get("content_zh", "") or card.get("content_en", "")[:400])
             if url:
                 st.markdown(f"来源：{url}")
-    return answer, citations
+    return answer + tip, citations
 
 
 st.markdown("## 🧭 宝可梦对战知识库问答")
@@ -120,32 +153,39 @@ if "key" not in st.session_state:
     st.session_state.url = cfg["llm"]["base_url"]
     st.session_state.model = cfg["llm"]["model"]
 configured = bool(st.session_state.key)
+server_free = free_quota.free_mode_available()
 
-# 配置区放主页面顶部：手机端侧边栏是折叠的，塞在里面等于找不到。
-if not configured:
-    st.warning("首次使用请先展开「⚙️ 模型配置」填入 API Key（DeepSeek/通义/Kimi 均可）")
+# 默认即可直接提问（站点侧提供免费额度）；自备 Key 是可选增强。
+if configured:
+    st.caption("🔑 当前使用**你自己的 API Key**（不限免费额度，按你的账户计费）")
+elif server_free:
+    q_now = free_quota.peek(_client_id())
+    st.caption(f"🎁 当前使用**站点免费额度**（免配置直接提问）· "
+               f"今日剩余 {q_now['day_left']} 次 · 每小时剩余 {q_now['hour_left']} 次")
+else:
+    st.warning("免费额度暂未开放，请展开「⚙️ 模型配置」填入你自己的 API Key")
+
 with st.expander(
-    "⚙️ 模型配置 · 已配置 ✓（点此修改）" if configured
-    else "⚙️ 模型配置 · 点此展开填入 API Key",
-    expanded=False,
+    "⚙️ 模型配置 · 使用自己的 Key（可选，点此展开）" if not configured
+    else "⚙️ 模型配置 · 已使用自己的 Key ✓（点此修改或清空）",
+    expanded=not configured and not server_free,
 ):
-    st.caption("支持任何 OpenAI 兼容服务；推荐 DeepSeek"
-               "（[注册](https://platform.deepseek.com/)）。")
     st.info(
         "🔒 **隐私承诺：本项目不收集、不存储、不共享你的任何数据。**\n\n"
         "- API Key 只在服务器**内存**中用于本次会话调用你指定的模型："
         "**不写入磁盘、不记录日志、不上传任何第三方**，会话结束（关闭页面后约"
         " 10 分钟）即从内存销毁；\n"
         "- 对话内容同样只在内存会话中，刷新页面即清空；\n"
+        "- 站点免费额度模式下，问题会经站点配置的模型服务处理；\n"
         "- 本项目完全开源，数据流向可在 "
         "`src/config.py` 与 `src/generation/llm.py` 中自行审计。"
     )
-    st.markdown("**🎁 没有 API Key？下面是免费额度方案（选一个注册即可）**")
+    st.markdown("**可选：填入自己的 Key（额度独立、更快更稳，且不受免费次数限制）**")
     preset_name = st.selectbox(
         "快速配置",
         list(LLM_PRESETS.keys()),
         index=None,
-        placeholder="选择一个服务商，自动填好接口地址与模型名（Key 仍需你自己填）",
+        placeholder="选择服务商，自动填好接口地址与模型名（Key 仍需你自己填）",
         label_visibility="collapsed",
     )
     if preset_name:
@@ -158,9 +198,16 @@ with st.expander(
     k = st.text_input("API Key", value=st.session_state.key, type="password")
     u = st.text_input("接口地址", value=st.session_state.url)
     m = st.text_input("模型名", value=st.session_state.model)
-    if st.button("保存到本会话", type="primary", use_container_width=True):
-        st.session_state.key, st.session_state.url, st.session_state.model = k, u, m
-        st.rerun()
+    col_save, col_clear = st.columns([2, 1])
+    with col_save:
+        if st.button("保存到本会话", type="primary", use_container_width=True):
+            st.session_state.key, st.session_state.url, st.session_state.model = k, u, m
+            st.rerun()
+    with col_clear:
+        if st.button("清空（回到免费）", use_container_width=True,
+                     disabled=not configured):
+            st.session_state.key = ""
+            st.rerun()
 
 if "messages" not in st.session_state:
     st.session_state.messages = []

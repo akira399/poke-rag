@@ -16,10 +16,14 @@ Showdown / Smogon），回答可溯源、效果可量化评测。
 > 若演示地址过期（试用到期），可按下方「快速开始」或「云端部署」自行部署，
 > 全程约 10 分钟。
 
-### 🎁 免费 API 方案（无需信用卡）
+### 🎁 免费额度（默认直接可用，无需配置）
 
-项目支持**任何 OpenAI 兼容接口**，界面「快速配置」内置了以下预设，
-选中即自动填好接口地址与模型名，你只需注册并粘贴 Key：
+**访客打开页面即可直接提问**——站点侧已配置免费模型额度，无需注册、无需填 Key。
+为保护共享额度，免费模式有限流（默认每客户端每小时 10 次 / 每天 30 次）。
+
+**想解除限制或追求更快更稳？** 展开「⚙️ 模型配置」填入自己的 Key 即可：
+额度独立、不受限流、按你的账户计费。界面内置以下免费方案预设，选中自动填好
+接口地址与模型名（只需注册并粘贴 Key）：
 
 | 服务商 | 免费额度 | 有效期 | 说明 |
 |---|---|---|---|
@@ -28,6 +32,16 @@ Showdown / Smogon），回答可溯源、效果可量化评测。
 | **腾讯混元** | 100 万 tokens（共享） | 1 年 | 与演示服务器同厂，速度快 |
 | **硅基流动** | 免费模型 + 赠送额度 | — | 同时提供**免费向量模型** |
 | DeepSeek | 价格极低（非免费） | — | 中文效果好，稳定 |
+
+站点自部署免费模式（环境变量，密钥不落盘）：
+
+```bash
+LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4 \
+LLM_MODEL=glm-4.7-flash \
+LLM_API_KEY=<站点共享 Key> \
+FREE_PER_HOUR=10 FREE_PER_DAY=30 FREE_GLOBAL_PER_DAY=500 \
+streamlit run app_render.py
+```
 
 **免费向量检索（可选增强）**：项目默认走 BM25 关键词检索（top-3 命中 99%，零成本）。
 若想开启混合检索，可用硅基流动**免费**的 `BAAI/bge-m3`（正是本项目原设计的向量模型）
@@ -38,9 +52,6 @@ EMBED_BACKEND=remote \
 EMBED_BASE_URL=https://api.siliconflow.cn/v1 \
 EMBED_MODEL_NAME=BAAI/bge-m3 \
 EMBED_API_KEY=<你的 Key> \
-LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4 \
-LLM_MODEL=glm-4.7-flash \
-LLM_API_KEY=<你的 Key> \
 streamlit run app_render.py
 ```
 

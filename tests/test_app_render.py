@@ -35,8 +35,12 @@ def test_config_in_main_area_not_sidebar(app):
     assert any("API Key" in k for k in keys)
 
 
-def test_first_run_warning(app):
-    assert any("模型配置" in w.value for w in app.warning)
+def test_default_free_mode_no_config_needed(app):
+    """默认免配置：站点未配共享 Key 时也不应崩溃，且给出引导而非强制拦截。"""
+    assert not app.exception
+    # 未配置自己的 Key 时，页面不应出现"必须填 Key 才能用"的阻塞式警告
+    # （免费模式不可用时才提示，这里断言页面本身可用）
+    assert any("API Key" in (t.label or "") for t in app.text_input)
 
 
 def test_examples_present(app):
@@ -52,15 +56,23 @@ def test_chat_composer_structure(app):
     assert len(app.chat_input) == 0
 
 
+def test_clear_key_returns_to_free_mode(app):
+    """自备 Key 模式应提供「清空（回到免费）」入口。"""
+    assert any("清空" in (b.label or "") for b in app.button)
+    assert any("可选" in (e.label or "") or "自己的 Key" in (e.label or "")
+               for e in app.expander)
+
+
 def test_secondary_sections_collapsed(app):
+    """除配置区可能自动展开外，示例与检索调试默认收起。"""
     labels = [e.label for e in app.expander]
-    assert labels == [
-        "⚙️ 模型配置 · 点此展开填入 API Key",
-        "💡 常见问题实例（点击展开）",
-        "🔍 检索调试",
-    ]
+    assert any("模型配置" in l for l in labels)
+    assert "💡 常见问题实例（点击展开）" in labels
+    assert "🔍 检索调试" in labels
+    assert len(labels) == 3
 
 
 def test_chat_empty_state(app):
-    assert "对话" in "\n".join(m.value for m in app.markdown)
-    assert "对战终端已就绪" in "\n".join(m.value for m in app.markdown)
+    md = "\n".join(m.value for m in app.markdown)
+    assert "对话" in md
+    assert "对战终端已就绪" in md
