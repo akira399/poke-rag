@@ -175,11 +175,18 @@ server_free = free_quota.free_mode_available()
 
 # 默认即可直接提问（站点侧提供免费额度）；自备 Key 是可选增强。
 if configured:
-    st.caption("🔑 当前使用**你自己的 API Key**（不限免费额度，按你的账户计费）")
+    st.caption("🔑 当前使用**你自己的 API Key**（不限站点次数，按你的账户计费）")
 elif server_free:
     q_now = free_quota.peek(_client_id())
-    st.caption(f"🎁 当前使用**站点免费额度**（免配置直接提问）· "
-               f"今日剩余 {q_now['day_left']} 次 · 每小时剩余 {q_now['hour_left']} 次")
+    st.caption(
+        f"🎁 **免配置直接提问**（站点免费额度）｜ 个人限额：每小时 "
+        f"{q_now['hour_limit']} 次 / 每天 {q_now['day_limit']} 次"
+        f"（当前剩余 {q_now['hour_left']} / {q_now['day_left']}）"
+    )
+    st.caption(
+        "🔁 主模型繁忙或限流时，**自动切换备用模型**，通常无需重试；"
+        "想要更快更稳、不限次数，可在下方填入自己的 Key"
+    )
 else:
     st.warning("免费额度暂未开放，请展开「⚙️ 模型配置」填入你自己的 API Key")
 

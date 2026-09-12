@@ -88,3 +88,15 @@ def test_no_raw_html_tags_in_rendered_output(app):
         assert "</sub>" not in m.value
     for c in app.caption:
         assert "<sub>" not in c.value
+
+
+def test_free_mode_copy_explains_quota_and_fallback(app):
+    """首页要同时说清两件事：个人免费次数 + 主备自动切换。
+
+    两者是独立机制：降级只解决"模型繁忙"，不会增加用户可用次数，
+    所以文案不能让用户误以为"主模型用完会自动续上备用额度"。
+    """
+    caps = "\n".join(c.value for c in app.caption)
+    assert "免配置直接提问" in caps or "站点免费额度" in caps
+    assert "每小时" in caps and "每天" in caps
+    assert ("备用模型" in caps) or ("自动切换" in caps)
