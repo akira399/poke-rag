@@ -28,12 +28,24 @@ h2, h3 { margin-top: 1.1rem !important; margin-bottom: .5rem !important; }
 
 /* ---------- 卡片感：对话气泡、展开项、输入框统一为半透明面板 ---------- */
 [data-testid="stChatMessage"] {
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.13);
-    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px 4px 14px 14px;   /* 左上直角暗示"来自左侧的对方" */
     padding: 14px 18px;
     margin-bottom: 10px;
     backdrop-filter: blur(6px);
+}
+/* AI 回答：左侧蓝色竖条，阅读焦点 */
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) {
+    border-left: 3px solid rgba(91, 156, 255, 0.85);
+}
+/* 用户提问：蓝色气泡 + 右对齐，一眼区分"谁在说话" */
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
+    background: rgba(91, 156, 255, 0.16);
+    border: 1px solid rgba(120, 170, 255, 0.42);
+    border-radius: 14px 14px 4px 14px;
+    margin-left: auto;
+    max-width: 88%;
 }
 [data-testid="stExpander"] {
     border: 1px solid rgba(255, 255, 255, 0.10) !important;
@@ -84,6 +96,17 @@ section[data-testid="stSidebar"] {
     background: rgba(12, 20, 40, 0.72) !important;
     border: 1px solid rgba(255, 255, 255, 0.14) !important;
     border-radius: 12px !important;
+}
+
+/* 提问表单：主色描边与光晕，和消息气泡拉开层级（这是"要操作的东西"） */
+form [data-baseweb="input"] {
+    border: 1.5px solid rgba(91, 156, 255, 0.55) !important;
+    box-shadow: 0 0 0 1px rgba(91, 156, 255, 0.18), 0 2px 14px rgba(91, 156, 255, 0.12);
+    border-radius: 12px !important;
+}
+form [data-baseweb="input"]:focus-within {
+    border-color: rgba(120, 175, 255, 0.95) !important;
+    box-shadow: 0 0 0 2px rgba(91, 156, 255, 0.30), 0 2px 18px rgba(91, 156, 255, 0.22);
 }
 /* 下拉框 */
 [data-baseweb="select"] > div {

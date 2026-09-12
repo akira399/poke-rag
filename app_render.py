@@ -168,7 +168,7 @@ with st.form("ask", clear_on_submit=True, border=False):
         label_visibility="collapsed",
         placeholder="问点什么？例如：快龙怕什么？",
     )
-    ok = st.form_submit_button("🚀 发送", use_container_width=True)
+    ok = st.form_submit_button("🚀 发送", use_container_width=True, type="primary")
 if not prompt and ok and q.strip():
     prompt = q.strip()
 
