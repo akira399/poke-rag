@@ -59,12 +59,15 @@ class TestChampionCards:
         assert set(saved_ids) == {c["card_id"] for c in cards}
 
     def test_context_includes_champion_cards(self):
-        """上下文组装白名单必须含 champion，否则检索命中后组装时被静默丢弃。"""
+        """上下文组装白名单必须含 champion，否则检索命中后组装时被静默丢弃。
+
+        另锁一个实战教训：build_context 只喂 content_zh，人名必须写进正文
+        （只放 title/aliases 会让模型拿到编号片段却对不上名字，如实拒答）。
+        """
         cards = load_cards()
         assert "champion:cynthia" in cards
         context, mapping = build_context(["champion:cynthia"])
-        # content_zh 不重复人名（在标题里），断言正文关键事实
-        assert "神奥联盟冠军" in context and "烈咬陆鲨" in context
+        assert "竹兰" in context and "烈咬陆鲨" in context
         assert mapping["1"] == "champion:cynthia"
 
     def test_retrieval_hits_champion(self, monkeypatch):
