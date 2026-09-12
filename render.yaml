@@ -21,7 +21,7 @@ services:
       - key: LLM_BASE_URL
         value: https://api.deepseek.com
       - key: LLM_MODEL
-        value: deepseek-v4-flash
+        value: deepseek-flash
       # API Key 不在服务端配置：访客在界面自行填入（会话级保存）
       - key: POKE_RAG_EMBED
         sync: false

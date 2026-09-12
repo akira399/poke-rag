@@ -23,7 +23,7 @@ After=network.target
 WorkingDirectory=/opt/poke-rag
 Environment=EMBED_DISABLED=1
 Environment=LLM_BASE_URL=https://api.deepseek.com
-Environment=LLM_MODEL=deepseek-v4-flash
+Environment=LLM_MODEL=deepseek-flash
 ExecStart=/opt/poke-rag/.venv/bin/streamlit run app_render.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
 Restart=always
 RestartSec=5

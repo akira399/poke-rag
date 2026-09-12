@@ -197,7 +197,7 @@ def build_ui() -> gr.Blocks:
                                value=cfg["llm"]["base_url"],
                                info="DeepSeek: https://api.deepseek.com")
                 m = gr.Textbox(label="模型名", value=cfg["llm"]["model"],
-                               info="推荐 deepseek-v4-flash（便宜够用）；"
+                               info="推荐 deepseek-flash（便宜够用）；"
                                     "通义: qwen-plus；Kimi: moonshot-v1-8k")
                 save = gr.Button("保存到本会话", variant="primary")
                 hint = gr.Markdown()

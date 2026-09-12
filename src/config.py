@@ -15,7 +15,7 @@ _DEFAULTS = {
     "llm": {
         "base_url": "https://api.deepseek.com",
         "api_key": "",
-        "model": "deepseek-v4-flash",
+        "model": "deepseek-flash",
         "temperature": 0.2,
     },
     "rag": {
