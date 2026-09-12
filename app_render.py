@@ -127,7 +127,7 @@ if not configured:
 with st.expander(
     "⚙️ 模型配置 · 已配置 ✓（点此修改）" if configured
     else "⚙️ 模型配置 · 点此展开填入 API Key",
-    expanded=not configured,
+    expanded=False,
 ):
     st.caption("支持任何 OpenAI 兼容服务；推荐 DeepSeek"
                "（[注册](https://platform.deepseek.com/)）。")
@@ -152,7 +152,7 @@ if "messages" not in st.session_state:
 if "pending" not in st.session_state:
     st.session_state.pending = None
 
-with st.expander("💡 常见问题实例（点击即可提问）", expanded=True):
+with st.expander("💡 常见问题实例（点击展开）", expanded=False):
     for group, items in EXAMPLES.items():
         st.markdown(f"**{group}**")
         for i, q in enumerate(items):

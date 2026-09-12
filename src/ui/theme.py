@@ -1,30 +1,37 @@
 import base64
 import os
 
-# 修复：st.chat_input 自动聚焦会让 Streamlit 把内容滚到底部，
-# 首次进入页面看不到标题与配置区。策略：加载后持续把滚动容器拉回顶部，
-# 直到用户首次交互（点击/按键/触摸）为止；st.rerun（提问/保存）不受影响。
+# 修复：st.chat_input 聚焦会让 Streamlit 在加载时把内容滚到底部。
+# 不做"拉回纠正"（视觉跳动、观感差），而是在页面加载后前 3.5 秒内
+# 拦截程序触发的滚动（scrollIntoView + scrollTop 赋值），页面自然停在
+# 顶端；3.5 秒后恢复原生行为，用户浏览与提问后的滚动完全不受影响。
 _JS = """<script>(function(){
   var w = window.parent;
-  if (w.__pokeScrollFixed) return;
-  w.__pokeScrollFixed = true;
-  var timers = [];
-  var fix = function(){
-    var sc = w.document.querySelector('[data-testid="stAppScrollToBottomContainer"]');
-    if (sc && sc.scrollTop > 0) sc.scrollTop = 0;
+  if (w.__pokeScrollHooked) return;
+  w.__pokeScrollHooked = true;
+  var UNTIL = Date.now() + 3500;
+  var proto = w.Element.prototype;
+  var nativeSIV = proto.scrollIntoView;
+  proto.scrollIntoView = function(){
+    if (Date.now() < UNTIL) return;
+    return nativeSIV.apply(this, arguments);
   };
-  [300, 800, 1500, 2500, 4000, 6000, 8000].forEach(function(t){
-    timers.push(setTimeout(fix, t));
-  });
-  var stop = function(){
-    timers.forEach(clearTimeout);
-    ["pointerdown", "keydown", "touchstart"].forEach(function(ev){
-      w.removeEventListener(ev, stop, true);
+  var bind = function(){
+    var sc = w.document.querySelector('[data-testid="stAppScrollToBottomContainer"]');
+    if (!sc) { setTimeout(bind, 250); return; }
+    var d = Object.getOwnPropertyDescriptor(proto, "scrollTop");
+    Object.defineProperty(sc, "scrollTop", {
+      get: function(){ return d.get.call(sc); },
+      set: function(v){ if (Date.now() >= UNTIL) d.set.call(sc, v); },
+      configurable: true,
     });
   };
-  ["pointerdown", "keydown", "touchstart"].forEach(function(ev){
-    w.addEventListener(ev, stop, true);
-  });
+  bind();
+  setTimeout(function(){
+    proto.scrollIntoView = nativeSIV;
+    var sc = w.document.querySelector('[data-testid="stAppScrollToBottomContainer"]');
+    if (sc) delete sc.scrollTop;  // 移除实例拦截，恢复原型原生属性
+  }, 3700);
 })();</script>"""
 
 # 界面样式：虚化背景 + 留白 + 卡片层级（用 CSS 注入，Streamlit 原生组件保持功能不变）
