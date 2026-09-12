@@ -69,3 +69,11 @@ class TestGameCards:
         """「宝可梦冠军」与联盟冠军训练家同名歧义——总览卡正文须有交叉说明。"""
         cards = {c["card_id"]: c for c in _load_game_cards()}
         assert "联盟冠军训练家" in cards["game:index"]["content_zh"]
+
+    def test_default_environment_is_champions(self):
+        """产品约定：用户未指明游戏时，默认按《宝可梦冠军》环境回答
+        （系统提示词第 5 条，站点的主要用户群是冠军玩家）。"""
+        from src.generation.prompt import SYSTEM_PROMPT
+
+        assert "宝可梦冠军" in SYSTEM_PROMPT and "默认" in SYSTEM_PROMPT
+        assert "朱／紫" in SYSTEM_PROMPT  # 明确提到主线游戏时按主线回答

@@ -71,6 +71,15 @@ class TestCalculate:
         ctx = try_build_context("快龙用龙爪打喷火龙多少血")
         assert "一击击杀概率" in ctx
 
+    def test_mainline_formula_disclaimer(self):
+        """站点默认环境是《宝可梦冠军》（66 点点数制），伤害引擎必须声明
+        自己用的是主线公式口径，避免模型把两者混在一起。"""
+        if not _HAS_DATA:
+            import pytest
+            pytest.skip("数据未生成")
+        ctx = try_build_context("快龙用龙爪打喷火龙多少血")
+        assert "主线" in ctx and "宝可梦冠军" in ctx
+
     def test_missing_info_asks_user(self):
         ctx = try_build_context("岩崩打喷火龙多少血")
         assert "信息不足" in ctx
