@@ -60,7 +60,7 @@ def render_answer(prompt: str) -> tuple[str, dict]:
     """本地引擎直连：过程（路由/检索/思考）实时展示，答案流式输出。"""
     skey = st.session_state
     if not skey.get("key"):
-        return ("⚠️ 尚未配置模型 API Key。请在下方「模型设置」中填入你自己的"
+        return ("⚠️ 尚未配置模型 API Key。请展开页面顶部「⚙️ 模型配置」填入你的"
                 " DeepSeek Key（[免费注册](https://platform.deepseek.com/)），"
                 "仅保存在当前会话。"), {}
     llm_cfg = {"api_key": skey["key"], "base_url": skey.get("url"),
@@ -111,72 +111,75 @@ def render_answer(prompt: str) -> tuple[str, dict]:
     return answer, citations
 
 
-with st.sidebar:
-    st.markdown("##### ⚙️ 模型设置")
+st.markdown("## 🧭 宝可梦对战知识库问答")
+st.caption("回答带引用可点击查证；处理过程实时展开；伤害计算与官方计算器一致")
+
+if "key" not in st.session_state:
+    cfg = load()
+    st.session_state.key = ""
+    st.session_state.url = cfg["llm"]["base_url"]
+    st.session_state.model = cfg["llm"]["model"]
+configured = bool(st.session_state.key)
+
+# 配置区放主页面顶部：手机端侧边栏是折叠的，塞在里面等于找不到。
+if not configured:
+    st.warning("首次使用请先展开「⚙️ 模型配置」填入 API Key（DeepSeek/通义/Kimi 均可）")
+with st.expander(
+    "⚙️ 模型配置 · 已配置 ✓（点此修改）" if configured
+    else "⚙️ 模型配置 · 点此展开填入 API Key",
+    expanded=not configured,
+):
     st.caption("支持任何 OpenAI 兼容服务；推荐 DeepSeek"
                "（[注册](https://platform.deepseek.com/)）。"
                "Key 仅保存在当前会话，服务器不存储。")
-    cfg = load()
-    if "key" not in st.session_state:
-        st.session_state.key = ""
-        st.session_state.url = cfg["llm"]["base_url"]
-        st.session_state.model = cfg["llm"]["model"]
     k = st.text_input("API Key", value=st.session_state.key, type="password")
     u = st.text_input("接口地址", value=st.session_state.url)
     m = st.text_input("模型名", value=st.session_state.model)
     if st.button("保存到本会话", type="primary", use_container_width=True):
         st.session_state.key, st.session_state.url, st.session_state.model = k, u, m
-        st.success("已保存")
-
-st.markdown("## 🧭 宝可梦对战知识库问答")
-st.caption("回答带引用可点击查证；处理过程实时展开；伤害计算与官方计算器一致")
+        st.rerun()
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "pending" not in st.session_state:
     st.session_state.pending = None
 
-col_demo, col_chat = st.columns([1, 2.6], gap="medium")
-
-with col_demo:
-    st.markdown("##### 💡 常见问题实例")
-    st.caption("点击即可提问")
+with st.expander("💡 常见问题实例（点击即可提问）", expanded=True):
     for group, items in EXAMPLES.items():
         st.markdown(f"**{group}**")
         for i, q in enumerate(items):
             if st.button(q, key=f"ex_{group}_{i}", use_container_width=True):
                 st.session_state.pending = q
 
-with col_chat:
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            content = msg["content"]
-            if msg["role"] == "assistant":
-                content = prompt_mod.linkify_citations(content,
-                                                       msg.get("citations") or {})
-            st.markdown(content)
-            for n, card in (msg.get("citations") or {}).items():
-                url = (card.get("source") or {}).get("url") or ""
-                with st.expander(f"[{n}] {card.get('title_zh', '')}"
-                                 + ("　（来源 ↗）" if url else "")):
-                    st.markdown(card.get("content_zh", "")
-                                or card.get("content_en", "")[:400])
-                    if url:
-                        st.markdown(f"来源：{url}")
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        content = msg["content"]
+        if msg["role"] == "assistant":
+            content = prompt_mod.linkify_citations(content,
+                                                   msg.get("citations") or {})
+        st.markdown(content)
+        for n, card in (msg.get("citations") or {}).items():
+            url = (card.get("source") or {}).get("url") or ""
+            with st.expander(f"[{n}] {card.get('title_zh', '')}"
+                             + ("　（来源 ↗）" if url else "")):
+                st.markdown(card.get("content_zh", "")
+                            or card.get("content_en", "")[:400])
+                if url:
+                    st.markdown(f"来源：{url}")
 
-    prompt = st.chat_input("问点什么？例如：快龙怕什么？")
-    if st.session_state.pending:
-        prompt = st.session_state.pending
-        st.session_state.pending = None
-    if prompt:
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        answer, citations = render_answer(prompt)
-        st.session_state.messages.append(
-            {"role": "assistant", "content": answer, "citations": citations}
-        )
-        st.rerun()
+prompt = st.chat_input("问点什么？例如：快龙怕什么？")
+if st.session_state.pending:
+    prompt = st.session_state.pending
+    st.session_state.pending = None
+if prompt:
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+    answer, citations = render_answer(prompt)
+    st.session_state.messages.append(
+        {"role": "assistant", "content": answer, "citations": citations}
+    )
+    st.rerun()
 
 with st.expander("🔍 检索调试"):
     q2 = st.text_input("检索问题", "快龙怕什么？")
