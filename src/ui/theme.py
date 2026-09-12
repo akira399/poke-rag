@@ -2,17 +2,29 @@ import base64
 import os
 
 # 修复：st.chat_input 自动聚焦会让 Streamlit 把内容滚到底部，
-# 首次进入页面看不到标题与配置区。只在父页面首次加载后的短时间内
-# 把滚动容器拉回顶部；st.rerun（提问/保存）不受影响（父页面全局标记）。
+# 首次进入页面看不到标题与配置区。策略：加载后持续把滚动容器拉回顶部，
+# 直到用户首次交互（点击/按键/触摸）为止；st.rerun（提问/保存）不受影响。
 _JS = """<script>(function(){
   var w = window.parent;
   if (w.__pokeScrollFixed) return;
   w.__pokeScrollFixed = true;
+  var timers = [];
   var fix = function(){
     var sc = w.document.querySelector('[data-testid="stAppScrollToBottomContainer"]');
     if (sc && sc.scrollTop > 0) sc.scrollTop = 0;
   };
-  [300, 800, 1500, 2500].forEach(function(t){ setTimeout(fix, t); });
+  [300, 800, 1500, 2500, 4000, 6000, 8000].forEach(function(t){
+    timers.push(setTimeout(fix, t));
+  });
+  var stop = function(){
+    timers.forEach(clearTimeout);
+    ["pointerdown", "keydown", "touchstart"].forEach(function(ev){
+      w.removeEventListener(ev, stop, true);
+    });
+  };
+  ["pointerdown", "keydown", "touchstart"].forEach(function(ev){
+    w.addEventListener(ev, stop, true);
+  });
 })();</script>"""
 
 # 界面样式：虚化背景 + 留白 + 卡片层级（用 CSS 注入，Streamlit 原生组件保持功能不变）
