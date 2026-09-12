@@ -50,3 +50,4 @@ docs/lesson-0-预备知识.md
 _ui_shot*.png
 _ui_answer*.png
 .streamlit/assets/_raw/
+_deploy.zip
