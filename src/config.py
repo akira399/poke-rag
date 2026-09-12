@@ -48,10 +48,16 @@ _DEFAULTS = {
 # 服务商预设：界面「快速配置」一键填充 base_url 与模型名，用户只需填自己的
 # Key（本文件不含任何密钥）。全部为 OpenAI 兼容接口，可直接接入。
 LLM_PRESETS: dict[str, dict] = {
-    "智谱 GLM-4.7-Flash（免费）": {
+    "智谱 GLM-4-Flash（免费）": {
         "base_url": "https://open.bigmodel.cn/api/paas/v4",
-        "model": "glm-4.7-flash",
-        "note": "完全免费文本模型 · 200K 上下文 · 无需信用卡",
+        "model": "glm-4-flash-250414",
+        "note": "完全免费文本模型 · 128K 上下文 · 无需信用卡（实测响应快且稳定）",
+        "signup": "https://bigmodel.cn/usercenter/proj-mgmt/apikeys",
+    },
+    "智谱 GLM-4.5-Flash（免费·带思考）": {
+        "base_url": "https://open.bigmodel.cn/api/paas/v4",
+        "model": "glm-4.5-flash",
+        "note": "免费 · 答案更详尽（含思考过程）但较慢，约 20-30 秒",
         "signup": "https://bigmodel.cn/usercenter/proj-mgmt/apikeys",
     },
     "阿里云百炼（每模型 100 万 tokens）": {
