@@ -130,8 +130,16 @@ with st.expander(
     expanded=not configured,
 ):
     st.caption("支持任何 OpenAI 兼容服务；推荐 DeepSeek"
-               "（[注册](https://platform.deepseek.com/)）。"
-               "Key 仅保存在当前会话，服务器不存储。")
+               "（[注册](https://platform.deepseek.com/)）。")
+    st.info(
+        "🔒 **隐私承诺：本项目不收集、不存储、不共享你的任何数据。**\n\n"
+        "- API Key 只在服务器**内存**中用于本次会话调用你指定的模型："
+        "**不写入磁盘、不记录日志、不上传任何第三方**，会话结束（关闭页面后约"
+        " 10 分钟）即从内存销毁；\n"
+        "- 对话内容同样只在内存会话中，刷新页面即清空；\n"
+        "- 本项目完全开源，数据流向可在 "
+        "`src/config.py` 与 `src/generation/llm.py` 中自行审计。"
+    )
     k = st.text_input("API Key", value=st.session_state.key, type="password")
     u = st.text_input("接口地址", value=st.session_state.url)
     m = st.text_input("模型名", value=st.session_state.model)

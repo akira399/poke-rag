@@ -1,6 +1,20 @@
 import base64
 import os
 
+# 修复：st.chat_input 自动聚焦会让 Streamlit 把内容滚到底部，
+# 首次进入页面看不到标题与配置区。只在父页面首次加载后的短时间内
+# 把滚动容器拉回顶部；st.rerun（提问/保存）不受影响（父页面全局标记）。
+_JS = """<script>(function(){
+  var w = window.parent;
+  if (w.__pokeScrollFixed) return;
+  w.__pokeScrollFixed = true;
+  var fix = function(){
+    var sc = w.document.querySelector('[data-testid="stAppScrollToBottomContainer"]');
+    if (sc && sc.scrollTop > 0) sc.scrollTop = 0;
+  };
+  [300, 800, 1500, 2500].forEach(function(t){ setTimeout(fix, t); });
+})();</script>"""
+
 # 界面样式：虚化背景 + 留白 + 卡片层级（用 CSS 注入，Streamlit 原生组件保持功能不变）
 _CSS = """
 <style>
@@ -136,3 +150,7 @@ def inject(base_dir: str | None = None, bg_name: str = "background.png") -> None
     if "var(--poke-bg)" in css:
         css = css.replace("var(--poke-bg)", "linear-gradient(#0c1428, #0c1428)")
     st.markdown(css, unsafe_allow_html=True)
+    # JS 需经组件 iframe 注入才能执行；height=0 不可见
+    from streamlit.components.v1 import html as components_html
+
+    components_html(_JS, height=0)
