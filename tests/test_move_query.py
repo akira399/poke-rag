@@ -31,21 +31,21 @@ class TestListMoves:
 class TestDetect:
     def test_all_moves_query(self):
         aliases = {"快龙": "dragonite", "dragonite": "dragonite"}
-        en, hit = detect_move_query("快龙会哪些招式？", aliases)
-        assert hit and en == "dragonite"
+        en, kind = detect_move_query("快龙会哪些招式？", aliases)
+        assert kind == "all" and en == "dragonite"
 
     def test_status_moves_query(self):
         aliases = {"皮卡丘": "pikachu"}
-        en, hit = detect_move_query("皮卡丘的变化招式有哪些？", aliases)
-        assert hit and en == "pikachu"
+        en, kind = detect_move_query("皮卡丘的变化招式有哪些？", aliases)
+        assert kind == "status" and en == "pikachu"
 
     def test_no_keyword(self):
-        en, hit = detect_move_query("快龙怕什么？", {"快龙": "dragonite"})
-        assert not hit and en is None
+        en, kind = detect_move_query("快龙怕什么？", {"快龙": "dragonite"})
+        assert not kind and en is None
 
     def test_no_pokemon(self):
-        en, hit = detect_move_query("所有招式都有什么效果？", {})
-        assert not hit and en is None
+        en, kind = detect_move_query("所有招式都有什么效果？", {})
+        assert not kind and en is None
 
 
 class TestFormat:
@@ -57,3 +57,16 @@ class TestFormat:
         text = format_moves("快龙", result, limit_all=10)
         assert "攻击招式" in text and "变化招式" in text
         assert "威力" in text
+
+    def test_status_only_renders_subset(self):
+        """子集查询只渲染变化招式段——全量 139 条列表 + 严格反幻觉提示词
+        会让免费小模型对「答案就在片段里」的问题拒答（线上实测）。"""
+        if not _HAS_DATA:
+            import pytest
+            pytest.skip("showdown 数据未生成")
+        result = list_moves("dragonite")
+        text = format_moves("快龙", result, status_only=True)
+        assert "变化招式 40 个" in text
+        assert "龙之舞" in text
+        assert "攻击招式" not in text
+        assert len(text) < 800

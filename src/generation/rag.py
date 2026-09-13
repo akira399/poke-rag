@@ -146,19 +146,25 @@ class RAGEngine:
 
     def _try_move_tool(self, query: str):
         """招式集合查询（规则工具）。命中返回 (context, citation_map, cards)，否则 None。"""
+        from src.rules import pokedata
         from src.rules.move_query import detect_move_query, format_moves, list_moves
         from src.retrieval.query_expand import _load_aliases
 
-        species_en, hit = detect_move_query(query, _load_aliases())
-        if not hit:
+        species_en, kind = detect_move_query(query, _load_aliases())
+        if not species_en:
             return None
         result = list_moves(species_en)
         if not result:
             return None
+        species_zh = (pokedata.pokemon(species_en) or {}).get("_zh") or species_en
         card = {"card_id": "rule:move_query", "type": "rule",
-                "title_zh": f"{species_en} 招式规则查询",
+                "title_zh": f"{species_zh} 招式规则查询",
                 "title_en": species_en, "content_zh": ""}
-        # 用户明确要「所有」时全列，否则默认列前 40 防上下文过长
+        # 子集查询（变化招式等）只注入对应段：全量列表 + 严格反幻觉提示词
+        # 会让免费小模型拒答；用户明确要「所有」时全列，否则默认列前 40
+        status_only = kind == "status"
         full = any(k in query for k in ("所有", "全部"))
-        context = format_moves(species_en, result, limit_all=0 if full else 40)
+        context = format_moves(species_zh, result,
+                               limit_all=0 if (full or status_only) else 40,
+                               status_only=status_only)
         return context, {"1": "rule:move_query"}, [card]

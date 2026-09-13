@@ -27,6 +27,10 @@ _TYPE_ZH = {
 _QUERY_KEYWORDS = ["所有招式", "全部招式", "招式有哪些", "会什么招式", "会哪些招式",
                    "招式列表", "变化招式", "辅助招式", "非攻击招式", "威力0", "威力为零",
                    "什么招式", "哪些招式", "能学什么", "能学哪些", "技能有哪些"]
+# 只要变化类招式的子集查询——上下文只注入对应段：
+# 全量 139 条列表 + 严格反幻觉提示词会让免费小模型直接拒答（线上实测，
+# 答案明明在片段里也回「未找到」），按问题意图裁剪是正解
+_STATUS_KEYWORDS = ["变化招式", "辅助招式", "非攻击招式", "威力0", "威力为零"]
 
 
 def _load() -> dict:
@@ -74,14 +78,21 @@ def list_moves(species_en: str) -> dict | None:
     return {"damaging": damaging, "status": status}
 
 
-def format_moves(species_zh: str, result: dict, limit_all: int = 40) -> str:
+def format_moves(species_zh: str, result: dict, limit_all: int = 40,
+                 status_only: bool = False) -> str:
     """规则查询结果 -> 中文文本（攻击招式按威力降序；变化招式按名称序）。
 
     limit_all <= 0 表示不截断（用户明确要「所有招式」时全列）。
+    status_only 只渲染变化招式段——子集查询不应携带无关长列表。
     """
+    st = result["status"]
+    if status_only:
+        lines = [f"【{species_zh} 可学习的变化招式（规则查询结果）】",
+                 f"变化招式 {len(st)} 个："]
+        lines += [f"· {e['name']}（{e['type']}系）" for e in st]
+        return "\n".join(lines)
     lines = [f"【{species_zh} 可学习招式（规则查询结果）】"]
     dmg = result["damaging"]
-    st = result["status"]
     if dmg:
         lines.append(f"攻击招式 {len(dmg)} 个（按威力排序）：")
         for e in dmg[:limit_all] if limit_all > 0 else dmg:
@@ -97,13 +108,14 @@ def format_moves(species_zh: str, result: dict, limit_all: int = 40) -> str:
     return "\n".join(lines)
 
 
-def detect_move_query(query: str, aliases: dict[str, str]) -> tuple[str | None, bool]:
+def detect_move_query(query: str, aliases: dict[str, str]) -> tuple[str | None, str]:
     """意图检测：query 是否命中「宝可梦 + 招式集合」模式。
 
-    返回 (species_en 或 None, 是否命中)。宝可梦名来自别名表（中文名/俗称）。
+    返回 (species_en 或 None, 意图)：意图为 "status"（只要变化类招式）
+    或 "all"（全部）；未命中返回 (None, "")。宝可梦名来自别名表。
     """
     if not any(kw in query for kw in _QUERY_KEYWORDS):
-        return None, False
+        return None, ""
     # 找 query 中的物种名：取最长匹配（别名表 value 为规范英文名）
     best_en, best_len = None, 0
     for alias, en in aliases.items():
@@ -112,8 +124,9 @@ def detect_move_query(query: str, aliases: dict[str, str]) -> tuple[str | None, 
             if _is_pokemon_alias(en):
                 best_en, best_len = en, len(alias)
     if not best_en:
-        return None, False
-    return best_en, True
+        return None, ""
+    kind = "status" if any(kw in query for kw in _STATUS_KEYWORDS) else "all"
+    return best_en, kind
 
 
 _POKEMON_IDS: set[str] | None = None
